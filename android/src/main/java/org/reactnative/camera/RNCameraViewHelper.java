@@ -335,6 +335,19 @@ public class RNCameraViewHelper {
     });
   }
 
+  // Custom model event
+
+  public static void emitCustomModelEvent(final ViewGroup view, final WritableArray data) {
+    final ReactContext reactContext = (ReactContext) view.getContext();
+    reactContext.runOnNativeModulesQueueThread(new Runnable() {
+      @Override
+      public void run() {
+        CustomModelEvent event = CustomModelEvent.obtain(view.getId(), data);
+        reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher().dispatchEvent(event);
+      }
+    });
+  }
+
   // Utilities
 
   public static int getCorrectCameraRotation(int rotation, int facing, int cameraOrientation) {
