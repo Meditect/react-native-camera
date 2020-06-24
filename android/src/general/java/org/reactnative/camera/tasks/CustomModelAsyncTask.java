@@ -168,7 +168,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
         try {
 
             mDataOptions = new FirebaseModelInputOutputOptions.Builder()
-                    .setInputFormat(0, FirebaseModelDataType.BYTE, new int[]{1, 224, 224, 3})
+                    .setInputFormat(0, FirebaseModelDataType.BYTE, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
                     .setOutputFormat(0, FirebaseModelDataType.BYTE, new int[]{1, mLabelList.size()})
                     .build();
 
@@ -178,12 +178,9 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
             mInterpreter = FirebaseModelInterpreter.getInstance(modelOptions);
 
-            //showToast("Model loaded");
             // custom model
 
-            byte[] imgDataNV21 = YV12toNV21(mImageData, null, mWidth, mHeight);
-
-            ByteBuffer imgData = convertByteArrayToByteBuffer(imgDataNV21, mWidth, mHeight);
+            byte[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
 
             FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
             // Here's where the magic happens!!
@@ -195,7 +192,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                             Log.e("","ok");
                             byte[][] labelProbArray = firebaseModelOutputs.<byte[][]>getOutput(0);
                             WritableArray topLabels = getTopLabels(labelProbArray);
-                            //WritableArray arrayTest = Arguments.createArray();
+                            WritableArray arrayTest = Arguments.createArray();
                             System.out.println(topLabels);
                             mDelegate.onCustomModel(topLabels);
                             mDelegate.onCustomModelTaskCompleted();
@@ -250,70 +247,83 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
         return labelList;
     }
 
-    private synchronized ByteBuffer convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
+    private synchronized byte[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
 
-        int bytesPerChannel = 1;
+        int bytesPerChannel = 4;
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
         yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
         byte[] imageBytes = out.toByteArray();
         Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+        Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
 
-        // Bitmap bitmap = Bitmap.createBitmap(mHeight, mWidth, Bitmap.Config.ALPHA_8);
-        // ByteBuffer buffer = ByteBuffer.wrap(mImgData);
-        // buffer.rewind();
-        // bitmap.copyPixelsFromBuffer(buffer);
+        byte max = 100;
+        byte min = 100;
+        byte batchNum = 0;
+        byte[][][][] input = new byte[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
+        for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
+            for (int y = 0; y < DIM_IMG_SIZE_Y; y++) {
+                int pixel = scaledBitmap2.getPixel(x, y);
+                // Normalize channel values to [-1.0, 1.0]. This requirement varies by
+                // model. For example, some models might require values to be normalized
+                // to the range [0.0, 1.0] instead.
+                input[batchNum][x][y][0] = (byte) (((byte) Color.red(pixel)) + (byte) (127 & 0xFF));
+                //System.out.println(input[batchNum][x][y][0]);
+                input[batchNum][x][y][1] = (byte) (((byte) Color.green(pixel)) + (byte) (127 & 0xFF));
+                input[batchNum][x][y][2] = (byte) (((byte) Color.blue(pixel)) + (byte) (127 & 0xFF));
 
-        //        Matrix matrixR = new Matrix();
-        //        matrixR.postRotate(90.0f);
-        //        Bitmap bitmapRaw = Bitmap.createBitmap(bitmap, 0, 0,  bitmap.getWidth(),  bitmap.getHeight(), matrixR, true);
+                if ( input[batchNum][x][y][0] < min)  {
+                    min = input[batchNum][x][y][0];
+                }
 
-        ByteBuffer imgData = ByteBuffer.allocateDirect(bytesPerChannel * DIM_BATCH_SIZE * DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y * DIM_PIXEL_SIZE);
-        imgData.order(ByteOrder.nativeOrder());
-        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
-        imgData.rewind();
+                if ( input[batchNum][x][y][1] < min)  {
+                    min = input[batchNum][x][y][1];
+                }
 
-        /* Preallocated buffers for storing image data. */
-        int[] intValues = new int[DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y];
+                if ( input[batchNum][x][y][2] < min)  {
+                    min = input[batchNum][x][y][2];
+                }
 
-        scaledBitmap.getPixels(intValues, 0, scaledBitmap.getWidth(), 0, 0, scaledBitmap.getWidth(), scaledBitmap.getHeight());
-        // Convert the image to int points.
-        long startTime = SystemClock.uptimeMillis();
+                if ( input[batchNum][x][y][0] > max)  {
+                    max = input[batchNum][x][y][0];
+                }
 
-        int pixel = 0;
-        for (int i = 0; i < DIM_IMG_SIZE_X; ++i) {
-            for (int j = 0; j < DIM_IMG_SIZE_Y; ++j) {
-                final int val = intValues[pixel++];
+                if ( input[batchNum][x][y][1] > max)  {
+                    max = input[batchNum][x][y][1];
+                }
 
-                imgData.put((byte) ((val >> 16) & 0xFF));
-                imgData.put((byte) ((val >> 8) & 0xFF));
-                imgData.put((byte) (val & 0xFF));
-
+                if ( input[batchNum][x][y][2] > max)  {
+                    max = input[batchNum][x][y][2];
+                }
             }
         }
-        long endTime = SystemClock.uptimeMillis();
-        return imgData;
+
+
+        // ByteBuffer imgData = ByteBuffer.allocateDirect(bytesPerChannel * DIM_BATCH_SIZE * DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y * DIM_PIXEL_SIZE);
+        // imgData.order(ByteOrder.nativeOrder());
+        // Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
+        // imgData.rewind();
+
+        // /* Preallocated buffers for storing image data. */
+        // int[] intValues = new int[DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y];
+
+        // scaledBitmap.getPixels(intValues, 0, scaledBitmap.getWidth(), 0, 0, scaledBitmap.getWidth(), scaledBitmap.getHeight());
+        // // Convert the image to int points.
+
+        // int pixel = 0;
+        // for (int i = 0; i < DIM_IMG_SIZE_X; ++i) {
+        //   for (int j = 0; j < DIM_IMG_SIZE_Y; ++j) {
+        //     final int val = intValues[pixel++];
+
+        //     imgData.putFloat(((val >> 16) & 0xFF) / 255.0f);
+        //     imgData.putFloat(((val >> 8) & 0xFF) / 255.0f);
+        //     imgData.putFloat((val & 0xFF) / 255.0f);
+        //   }
+        // }
+
+        System.out.println(min);
+        System.out.println(max);
+        return input;
     }
-
-    private byte[] YV12toNV21(final byte[] input, byte[] output, final int width, final int height) {
-        if (output == null) {
-            output = new byte[input.length];
-        }
-        final int size = width * height;
-        final int quarter = size / 4;
-        final int u0 = size + quarter;
-
-        System.arraycopy(input, 0, output, 0, size); // Y is same
-
-        for (int v = size, u = u0, o = size; v < u0; u++, v++, o += 2) {
-            output[o] = input[v]; // For NV21, V first
-            output[o + 1] = input[u]; // For NV21, U second
-        }
-        return output;
-    }
-
-    // private void showToast(String message) {
-    //   Toast.makeText(getReactApplicationContext(), message, Toast.LENGTH_SHORT).show();
-    // }
 }

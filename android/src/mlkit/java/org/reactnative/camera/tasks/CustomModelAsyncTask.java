@@ -106,8 +106,8 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
   private static final int DIM_BATCH_SIZE = 1;
   private static final int DIM_PIXEL_SIZE = 3;
-  private static final int DIM_IMG_SIZE_X = 224; //368;
-  private static final int DIM_IMG_SIZE_Y = 224;//368;
+  private static final int DIM_IMG_SIZE_X = 400; //368;
+  private static final int DIM_IMG_SIZE_Y = 400;//368;
 
   private List<String> mLabelList;
 
@@ -163,27 +163,24 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
       return null;
     }
 
-    mLabelList = loadLabelList(mThemedReactContext);
+    //mLabelList = loadLabelList(mThemedReactContext);
 
     try {
 
       mDataOptions = new FirebaseModelInputOutputOptions.Builder()
-              .setInputFormat(0, FirebaseModelDataType.BYTE, new int[]{1, 224, 224, 3})
-              .setOutputFormat(0, FirebaseModelDataType.BYTE, new int[]{1, mLabelList.size()})
+              .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
+              .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 7})
               .build();
 
-      FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mobilenet_v1_1.0_224_quant.tflite").build();
+      FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mnist_model.tflite").build();
 
       FirebaseModelInterpreterOptions modelOptions = new FirebaseModelInterpreterOptions.Builder(localModel).build();
 
       mInterpreter = FirebaseModelInterpreter.getInstance(modelOptions);
 
-      //showToast("Model loaded");
       // custom model
 
-      byte[] imgDataNV21 = YV12toNV21(mImageData, null, mWidth, mHeight);
-
-      ByteBuffer imgData = convertByteArrayToByteBuffer(imgDataNV21, mWidth, mHeight);
+      float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
 
       FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
       // Here's where the magic happens!!
@@ -193,19 +190,24 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                 @Override
                 public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
                   Log.e("","ok");
-                  byte[][] labelProbArray = firebaseModelOutputs.<byte[][]>getOutput(0);
-                  WritableArray topLabels = getTopLabels(labelProbArray);
-                  //WritableArray arrayTest = Arguments.createArray();
-                  System.out.println(topLabels);
-                  mDelegate.onCustomModel(topLabels);
-                  mDelegate.onCustomModelTaskCompleted();
+                  float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
+
+                  for (int i = 0; i < labelProbArray[0].length; i++) {
+                    System.out.println(labelProbArray[0][i]);
+                  }
+
+                  // WritableArray topLabels = getTopLabels(labelProbArray);
+                  // WritableArray arrayTest = Arguments.createArray();
+                  // System.out.println(topLabels);
+                  // mDelegate.onCustomModel(topLabels);
+                   mDelegate.onCustomModelTaskCompleted();
                 }
               })
               .addOnFailureListener(
                       new OnFailureListener() {
                         @Override
                         public void onFailure(Exception e) {
-                          Log.e(TAG, "Text recognition task failed" + e);
+                          Log.e(TAG, "Custom model task failed" + e);
                           mDelegate.onCustomModelTaskCompleted();
                         }
                       });
@@ -250,70 +252,27 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
     return labelList;
   }
 
-  private synchronized ByteBuffer convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
-
-    int bytesPerChannel = 1;
+  private synchronized float[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
 
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
     yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
     byte[] imageBytes = out.toByteArray();
     Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+    Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
 
-    // Bitmap bitmap = Bitmap.createBitmap(mHeight, mWidth, Bitmap.Config.ALPHA_8);
-    // ByteBuffer buffer = ByteBuffer.wrap(mImgData);
-    // buffer.rewind();
-    // bitmap.copyPixelsFromBuffer(buffer);
-
-    //        Matrix matrixR = new Matrix();
-    //        matrixR.postRotate(90.0f);
-    //        Bitmap bitmapRaw = Bitmap.createBitmap(bitmap, 0, 0,  bitmap.getWidth(),  bitmap.getHeight(), matrixR, true);
-
-    ByteBuffer imgData = ByteBuffer.allocateDirect(bytesPerChannel * DIM_BATCH_SIZE * DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y * DIM_PIXEL_SIZE);
-    imgData.order(ByteOrder.nativeOrder());
-    Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
-    imgData.rewind();
-
-    /* Preallocated buffers for storing image data. */
-    int[] intValues = new int[DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y];
-
-    scaledBitmap.getPixels(intValues, 0, scaledBitmap.getWidth(), 0, 0, scaledBitmap.getWidth(), scaledBitmap.getHeight());
-    // Convert the image to int points.
-    long startTime = SystemClock.uptimeMillis();
-
-    int pixel = 0;
-    for (int i = 0; i < DIM_IMG_SIZE_X; ++i) {
-      for (int j = 0; j < DIM_IMG_SIZE_Y; ++j) {
-        final int val = intValues[pixel++];
-
-        imgData.put((byte) ((val >> 16) & 0xFF));
-        imgData.put((byte) ((val >> 8) & 0xFF));
-        imgData.put((byte) (val & 0xFF));
-
+    float[][][][] input = new float[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
+    float min = 1;
+    float max = 0;
+    int max2 = 0;
+    for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
+      for (int y = 0; y < DIM_IMG_SIZE_Y; y++) {
+        int pixel = scaledBitmap2.getPixel(x, y);
+        input[0][x][y][0] = (Color.red(pixel) );
+        input[0][x][y][1] = (Color.green(pixel) );
+        input[0][x][y][2] = (Color.blue(pixel) );
       }
     }
-    long endTime = SystemClock.uptimeMillis();
-    return imgData;
+    return input;
   }
-
-  private byte[] YV12toNV21(final byte[] input, byte[] output, final int width, final int height) {
-    if (output == null) {
-      output = new byte[input.length];
-    }
-    final int size = width * height;
-    final int quarter = size / 4;
-    final int u0 = size + quarter;
-
-    System.arraycopy(input, 0, output, 0, size); // Y is same
-
-    for (int v = size, u = u0, o = size; v < u0; u++, v++, o += 2) {
-      output[o] = input[v]; // For NV21, V first
-      output[o + 1] = input[u]; // For NV21, U second
-    }
-    return output;
-  }
-
-  // private void showToast(String message) {
-  //   Toast.makeText(getReactApplicationContext(), message, Toast.LENGTH_SHORT).show();
-  // }
 }
