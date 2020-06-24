@@ -1,7 +1,9 @@
 package org.reactnative.camera.tasks;
 
 import android.content.res.AssetManager;
+import android.graphics.ImageFormat;
 import android.graphics.Rect;
+import android.graphics.YuvImage;
 import android.util.Log;
 
 import com.facebook.react.bridge.Arguments;
@@ -35,6 +37,7 @@ import com.google.android.gms.tasks.Continuation;
 import com.google.android.gms.tasks.Task;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -178,7 +181,9 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
             //showToast("Model loaded");
             // custom model
 
-            ByteBuffer imgData = convertByteArrayToByteBuffer(mImageData);
+            byte[] imgDataNV21 = YV12toNV21(mImageData, null, mWidth, mHeight);
+
+            ByteBuffer imgData = convertByteArrayToByteBuffer(imgDataNV21, mWidth, mHeight);
 
             FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
             // Here's where the magic happens!!
@@ -188,10 +193,11 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                         @Override
                         public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
                             Log.e("","ok");
-                            // byte[][] labelProbArray = task.getResult().<byte[][]>getOutput(0);
-                            // WritableArray topLabels = getTopLabels(labelProbArray);
-                            WritableArray arrayTest = Arguments.createArray();
-                            mDelegate.onCustomModel(arrayTest);
+                            byte[][] labelProbArray = firebaseModelOutputs.<byte[][]>getOutput(0);
+                            WritableArray topLabels = getTopLabels(labelProbArray);
+                            //WritableArray arrayTest = Arguments.createArray();
+                            System.out.println(topLabels);
+                            mDelegate.onCustomModel(topLabels);
                             mDelegate.onCustomModelTaskCompleted();
                         }
                     })
@@ -244,12 +250,20 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
         return labelList;
     }
 
-    private synchronized ByteBuffer convertByteArrayToByteBuffer(byte[] mImgData) throws FileNotFoundException {
+    private synchronized ByteBuffer convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
 
         int bytesPerChannel = 1;
 
-        ByteArrayInputStream mImgDataInput = new ByteArrayInputStream(mImgData);
-        Bitmap bitmap = BitmapFactory.decodeStream(mImgDataInput);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
+        yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
+        byte[] imageBytes = out.toByteArray();
+        Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+
+        // Bitmap bitmap = Bitmap.createBitmap(mHeight, mWidth, Bitmap.Config.ALPHA_8);
+        // ByteBuffer buffer = ByteBuffer.wrap(mImgData);
+        // buffer.rewind();
+        // bitmap.copyPixelsFromBuffer(buffer);
 
         //        Matrix matrixR = new Matrix();
         //        matrixR.postRotate(90.0f);
@@ -280,6 +294,23 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
         }
         long endTime = SystemClock.uptimeMillis();
         return imgData;
+    }
+
+    private byte[] YV12toNV21(final byte[] input, byte[] output, final int width, final int height) {
+        if (output == null) {
+            output = new byte[input.length];
+        }
+        final int size = width * height;
+        final int quarter = size / 4;
+        final int u0 = size + quarter;
+
+        System.arraycopy(input, 0, output, 0, size); // Y is same
+
+        for (int v = size, u = u0, o = size; v < u0; u++, v++, o += 2) {
+            output[o] = input[v]; // For NV21, V first
+            output[o + 1] = input[u]; // For NV21, U second
+        }
+        return output;
     }
 
     // private void showToast(String message) {

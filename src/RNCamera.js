@@ -284,7 +284,7 @@ type PropsType = typeof View.props & {
   faceDetectionClassifications?: number,
   onFacesDetected?: ({ faces: Array<TrackedFaceFeature> }) => void,
   onTextRecognized?: ({ textBlocks: Array<TrackedTextFeature> }) => void,
-  onCustomModel?: ({ textBlocks: Array<TrackedCustomFeature> }) => void,
+  onCustomModel?: ({ labels: Array<TrackedCustomFeature> }) => void,
   captureAudio?: boolean,
   keepAudioSession?: boolean,
   useCamera2Api?: boolean,
