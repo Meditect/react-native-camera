@@ -106,8 +106,8 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
     private static final int DIM_BATCH_SIZE = 1;
     private static final int DIM_PIXEL_SIZE = 3;
-    private static final int DIM_IMG_SIZE_X = 224; //368;
-    private static final int DIM_IMG_SIZE_Y = 224;//368;
+    private static final int DIM_IMG_SIZE_X = 400; //368;
+    private static final int DIM_IMG_SIZE_Y = 400;//368;
 
     private List<String> mLabelList;
 
@@ -163,16 +163,16 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
             return null;
         }
 
-        mLabelList = loadLabelList(mThemedReactContext);
+        //mLabelList = loadLabelList(mThemedReactContext);
 
         try {
 
             mDataOptions = new FirebaseModelInputOutputOptions.Builder()
-                    .setInputFormat(0, FirebaseModelDataType.BYTE, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
-                    .setOutputFormat(0, FirebaseModelDataType.BYTE, new int[]{1, mLabelList.size()})
+                    .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
+                    .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 7})
                     .build();
 
-            FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mobilenet_v1_1.0_224_quant.tflite").build();
+            FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mnist_model_quant.tflite").build();
 
             FirebaseModelInterpreterOptions modelOptions = new FirebaseModelInterpreterOptions.Builder(localModel).build();
 
@@ -180,21 +180,27 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
             // custom model
 
-            byte[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
+            float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
 
             FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
-            // Here's where the magic happens!!
+
             mInterpreter
                     .run(inputs, mDataOptions)
                     .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
                         @Override
                         public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
                             Log.e("","ok");
-                            byte[][] labelProbArray = firebaseModelOutputs.<byte[][]>getOutput(0);
-                            WritableArray topLabels = getTopLabels(labelProbArray);
-                            WritableArray arrayTest = Arguments.createArray();
-                            System.out.println(topLabels);
-                            mDelegate.onCustomModel(topLabels);
+                            float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
+
+                            for (int i = 0; i < labelProbArray[0].length; i++) {
+                                System.out.println(labelProbArray[0][i]);
+                            }
+
+                            // WritableArray topLabels = getTopLabels(labelProbArray);
+                            // System.out.println(topLabels);
+                            WritableArray result = Arguments.createArray();
+                            result.pushString(String.valueOf(labelProbArray[0][0]));
+                            mDelegate.onCustomModel(result);
                             mDelegate.onCustomModelTaskCompleted();
                         }
                     })
@@ -202,7 +208,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                             new OnFailureListener() {
                                 @Override
                                 public void onFailure(Exception e) {
-                                    Log.e(TAG, "Text recognition task failed" + e);
+                                    Log.e(TAG, "Custom model task failed" + e);
                                     mDelegate.onCustomModelTaskCompleted();
                                 }
                             });
@@ -212,6 +218,28 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
             e.printStackTrace();
         }
         return null;
+    }
+
+    private synchronized float[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
+        yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
+        byte[] imageBytes = out.toByteArray();
+        Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+        Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
+
+        float[][][][] input = new float[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
+
+        for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
+            for (int y = 0; y < DIM_IMG_SIZE_Y; y++) {
+                int pixel = scaledBitmap2.getPixel(x, y);
+                input[0][x][y][0] = ( Color.red(pixel) / 255.0f );
+                input[0][x][y][1] = ( Color.green(pixel) / 255.0f );
+                input[0][x][y][2] = ( Color.blue(pixel) / 255.0f );
+            }
+        }
+        return input;
     }
 
     private synchronized WritableArray getTopLabels(byte[][] labelProbArray) {
@@ -247,83 +275,4 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
         return labelList;
     }
 
-    private synchronized byte[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
-
-        int bytesPerChannel = 4;
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
-        yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
-        byte[] imageBytes = out.toByteArray();
-        Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
-        Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
-
-        byte max = 100;
-        byte min = 100;
-        byte batchNum = 0;
-        byte[][][][] input = new byte[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
-        for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
-            for (int y = 0; y < DIM_IMG_SIZE_Y; y++) {
-                int pixel = scaledBitmap2.getPixel(x, y);
-                // Normalize channel values to [-1.0, 1.0]. This requirement varies by
-                // model. For example, some models might require values to be normalized
-                // to the range [0.0, 1.0] instead.
-                input[batchNum][x][y][0] = (byte) (((byte) Color.red(pixel)) + (byte) (127 & 0xFF));
-                //System.out.println(input[batchNum][x][y][0]);
-                input[batchNum][x][y][1] = (byte) (((byte) Color.green(pixel)) + (byte) (127 & 0xFF));
-                input[batchNum][x][y][2] = (byte) (((byte) Color.blue(pixel)) + (byte) (127 & 0xFF));
-
-                if ( input[batchNum][x][y][0] < min)  {
-                    min = input[batchNum][x][y][0];
-                }
-
-                if ( input[batchNum][x][y][1] < min)  {
-                    min = input[batchNum][x][y][1];
-                }
-
-                if ( input[batchNum][x][y][2] < min)  {
-                    min = input[batchNum][x][y][2];
-                }
-
-                if ( input[batchNum][x][y][0] > max)  {
-                    max = input[batchNum][x][y][0];
-                }
-
-                if ( input[batchNum][x][y][1] > max)  {
-                    max = input[batchNum][x][y][1];
-                }
-
-                if ( input[batchNum][x][y][2] > max)  {
-                    max = input[batchNum][x][y][2];
-                }
-            }
-        }
-
-
-        // ByteBuffer imgData = ByteBuffer.allocateDirect(bytesPerChannel * DIM_BATCH_SIZE * DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y * DIM_PIXEL_SIZE);
-        // imgData.order(ByteOrder.nativeOrder());
-        // Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
-        // imgData.rewind();
-
-        // /* Preallocated buffers for storing image data. */
-        // int[] intValues = new int[DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y];
-
-        // scaledBitmap.getPixels(intValues, 0, scaledBitmap.getWidth(), 0, 0, scaledBitmap.getWidth(), scaledBitmap.getHeight());
-        // // Convert the image to int points.
-
-        // int pixel = 0;
-        // for (int i = 0; i < DIM_IMG_SIZE_X; ++i) {
-        //   for (int j = 0; j < DIM_IMG_SIZE_Y; ++j) {
-        //     final int val = intValues[pixel++];
-
-        //     imgData.putFloat(((val >> 16) & 0xFF) / 255.0f);
-        //     imgData.putFloat(((val >> 8) & 0xFF) / 255.0f);
-        //     imgData.putFloat((val & 0xFF) / 255.0f);
-        //   }
-        // }
-
-        System.out.println(min);
-        System.out.println(max);
-        return input;
-    }
 }

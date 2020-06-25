@@ -172,7 +172,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
               .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 7})
               .build();
 
-      FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mnist_model.tflite").build();
+      FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mnist_model_quant.tflite").build();
 
       FirebaseModelInterpreterOptions modelOptions = new FirebaseModelInterpreterOptions.Builder(localModel).build();
 
@@ -183,7 +183,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
       float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
 
       FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
-      // Here's where the magic happens!!
+
       mInterpreter
               .run(inputs, mDataOptions)
               .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
@@ -195,12 +195,11 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                   for (int i = 0; i < labelProbArray[0].length; i++) {
                     System.out.println(labelProbArray[0][i]);
                   }
-
-                  // WritableArray topLabels = getTopLabels(labelProbArray);
-                  // WritableArray arrayTest = Arguments.createArray();
-                  // System.out.println(topLabels);
-                  // mDelegate.onCustomModel(topLabels);
-                   mDelegate.onCustomModelTaskCompleted();
+                  WritableArray result = Arguments.createArray();
+                  result.pushString(String.valueOf(labelProbArray[0][0]));
+                  System.out.println(result);
+                  mDelegate.onCustomModel(result);
+                  mDelegate.onCustomModelTaskCompleted();
                 }
               })
               .addOnFailureListener(
@@ -210,46 +209,13 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                           Log.e(TAG, "Custom model task failed" + e);
                           mDelegate.onCustomModelTaskCompleted();
                         }
-                      });
+              });
 
     } catch (FirebaseMLException | FileNotFoundException e) {
       //Toast.makeText(getReactApplicationContext(), "model load failed", 4).show();
       e.printStackTrace();
     }
     return null;
-  }
-
-  private synchronized WritableArray getTopLabels(byte[][] labelProbArray) {
-    for (int i = 0; i < mLabelList.size(); ++i) {
-      sortedLabels.add(
-              new AbstractMap.SimpleEntry<>(mLabelList.get(i), (labelProbArray[0][i] & 0xff) / 255.0f));
-      if (sortedLabels.size() > RESULTS_TO_SHOW) {
-        sortedLabels.poll();
-      }
-    }
-    WritableArray result = Arguments.createArray();
-    final int size = sortedLabels.size();
-    for (int i = 0; i < size; ++i) {
-      Map.Entry<String, Float> label = sortedLabels.poll();
-      result.pushString(label.getKey() + ":" + label.getValue());
-    }
-    //Log.d("labels: " + result.toString());
-    return result;
-  }
-
-  private List<String> loadLabelList(ThemedReactContext context) {
-    List<String> labelList = new ArrayList<>();
-    try (
-            BufferedReader reader =
-                    new BufferedReader(new InputStreamReader(context.getAssets().open("mobilenet.txt")))) {
-      String line;
-      while ((line = reader.readLine()) != null) {
-        labelList.add(line);
-      }
-    } catch (IOException e) {
-      Log.e(TAG, "Failed to read label list.", e);
-    }
-    return labelList;
   }
 
   private synchronized float[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
@@ -262,17 +228,16 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
     Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
 
     float[][][][] input = new float[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
-    float min = 1;
-    float max = 0;
-    int max2 = 0;
+
     for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
       for (int y = 0; y < DIM_IMG_SIZE_Y; y++) {
         int pixel = scaledBitmap2.getPixel(x, y);
-        input[0][x][y][0] = (Color.red(pixel) );
-        input[0][x][y][1] = (Color.green(pixel) );
-        input[0][x][y][2] = (Color.blue(pixel) );
+        input[0][x][y][0] = ( Color.red(pixel) / 255.0f );
+        input[0][x][y][1] = ( Color.green(pixel) / 255.0f );
+        input[0][x][y][2] = ( Color.blue(pixel) / 255.0f );
       }
     }
     return input;
   }
+
 }

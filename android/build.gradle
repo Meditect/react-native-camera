@@ -80,6 +80,7 @@ dependencies {
   implementation "androidx.annotation:annotation:1.0.0"
   implementation "androidx.legacy:legacy-support-v4:1.0.0"
   implementation 'com.google.firebase:firebase-ml-model-interpreter:22.0.3'
+  implementation 'org.tensorflow:tensorflow-lite:2.0.0'
   //mlkitImplementation "com.google.firebase:firebase-ml-vision:${safeExtGet('firebase-ml-vision', '19.0.3')}"
   mlkitImplementation "com.google.firebase:firebase-ml-vision:${safeExtGet('firebase-ml-vision', '24.0.3')}"
 
