@@ -47,6 +47,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
   //Custom Model variables
 
+  // Dimensions required by the custom model
   private static final int DIM_BATCH_SIZE = 1;
   private static final int DIM_PIXEL_SIZE = 3;
   private static final int DIM_IMG_SIZE_X = 400; //368;
@@ -93,9 +94,9 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
       return null;
     }
 
-    //mLabelList = loadLabelList(mThemedReactContext);
-
     try {
+
+      // Creation of the firebase interpreter with the tflite model (assets folder)
 
       mDataOptions = new FirebaseModelInputOutputOptions.Builder()
               .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
@@ -107,8 +108,6 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
       FirebaseModelInterpreterOptions modelOptions = new FirebaseModelInterpreterOptions.Builder(localModel).build();
 
       mInterpreter = FirebaseModelInterpreter.getInstance(modelOptions);
-
-      // custom model
 
       float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
 
@@ -122,14 +121,12 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
                   float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
 
-                  for (int i = 0; i < labelProbArray[0].length; i++) {
-                    System.out.println(labelProbArray[0][i]);
-                  }
-
                   WritableArray result = Arguments.createArray();
-                  result.pushString(String.valueOf(labelProbArray[0][0]));
 
-                  System.out.println(result);
+                  //Get the probabilities for each label
+                  for (int i = 0; i < labelProbArray[0].length; i++) {
+                    result.pushString(String.valueOf(labelProbArray[0][i]));
+                  }
 
                   mDelegate.onCustomModel(result);
                   mDelegate.onCustomModelTaskCompleted();
@@ -153,13 +150,17 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
   private synchronized float[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
 
+    // Convert the YUV byte array into a bitmap
     ByteArrayOutputStream out = new ByteArrayOutputStream();
+
     YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
     yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
     byte[] imageBytes = out.toByteArray();
+
     Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
     Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
 
+    // Create a 4 dimension array with the reduced Bitmap informations
     float[][][][] input = new float[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
 
     for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
