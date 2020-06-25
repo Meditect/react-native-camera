@@ -46,8 +46,8 @@ public class CustomModelEvent extends Event<CustomModelEvent> {
 
   private WritableMap createEvent() {
     WritableMap event = Arguments.createMap();
-    event.putString("type", "label");
-    event.putArray("labels", mData);
+    event.putString("type", "custom");
+    event.putArray("customs", mData);
     event.putInt("target", getViewTag());
     return event;
   }

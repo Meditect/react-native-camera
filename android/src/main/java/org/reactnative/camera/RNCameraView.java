@@ -210,7 +210,6 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
         }
 
         if (willCallCustomTask) {
-          System.out.println("juste avant lock");
           customModelTaskLock = true;
           CustomModelAsyncTaskDelegate delegate = (CustomModelAsyncTaskDelegate) cameraView;
           new CustomModelAsyncTask(delegate, mThemedReactContext, data, width, height, correctRotation, getResources().getDisplayMetrics().density, getFacing(), getWidth(), getHeight(), mPaddingX, mPaddingY).execute();

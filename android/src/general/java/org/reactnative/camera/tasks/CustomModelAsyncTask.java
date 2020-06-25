@@ -5,74 +5,23 @@ import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.util.Log;
-
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.ReadableArray;
-import com.facebook.react.bridge.ReadableMap;
-import com.facebook.react.bridge.WritableArray;
-import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.uimanager.ThemedReactContext;
-
-import com.google.android.cameraview.CameraView;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.firebase.ml.vision.FirebaseVision;
-import com.google.firebase.ml.vision.common.FirebaseVisionImage;
-import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata;
-import com.google.firebase.ml.vision.text.FirebaseVisionText;
-import com.google.firebase.ml.vision.text.FirebaseVisionTextRecognizer;
-
-//Custom model imports
-
-import android.widget.Toast;
-
-import com.facebook.react.bridge.NativeModule;
-import com.facebook.react.bridge.ReactContext;
-import com.facebook.react.bridge.Promise;
-import com.facebook.react.bridge.ReactApplicationContext;
-import com.facebook.react.bridge.ReactContextBaseJavaModule;
-import com.facebook.react.bridge.ReactMethod;
-import com.facebook.react.bridge.Callback;
-import com.google.android.gms.tasks.Continuation;
-import com.google.android.gms.tasks.Task;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-
-import android.app.Activity;
 import android.graphics.BitmapFactory;
-import android.os.SystemClock;
-import androidx.annotation.NonNull;
-import android.widget.Toast;
-
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import android.util.Log;
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.WritableArray;
+import com.facebook.react.uimanager.ThemedReactContext;
+import com.facebook.react.bridge.ReactApplicationContext;
+
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.AbstractMap;
-import java.util.ArrayList;
 
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
 import com.google.firebase.ml.common.FirebaseMLException;
-import com.google.firebase.ml.common.modeldownload.FirebaseModelDownloadConditions;
-import com.google.firebase.ml.common.modeldownload.FirebaseModelManager;
 import com.google.firebase.ml.custom.FirebaseCustomLocalModel;
-import com.google.firebase.ml.custom.FirebaseCustomRemoteModel;
 import com.google.firebase.ml.custom.FirebaseModelDataType;
 import com.google.firebase.ml.custom.FirebaseModelInputOutputOptions;
 import com.google.firebase.ml.custom.FirebaseModelInputs;
@@ -81,9 +30,6 @@ import com.google.firebase.ml.custom.FirebaseModelInterpreterOptions;
 import com.google.firebase.ml.custom.FirebaseModelOutputs;
 
 import org.reactnative.camera.utils.ImageDimensions;
-
-import java.util.List;
-
 
 public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void> {
 
@@ -102,25 +48,10 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
     //Custom Model variables
 
-    private static final int RESULTS_TO_SHOW = 3;
-
     private static final int DIM_BATCH_SIZE = 1;
     private static final int DIM_PIXEL_SIZE = 3;
     private static final int DIM_IMG_SIZE_X = 400; //368;
     private static final int DIM_IMG_SIZE_Y = 400;//368;
-
-    private List<String> mLabelList;
-
-    private final PriorityQueue<Map.Entry<String, Float>> sortedLabels =
-            new PriorityQueue<>(
-                    RESULTS_TO_SHOW,
-                    new Comparator<Map.Entry<String, Float>>() {
-                        @Override
-                        public int compare(Map.Entry<String, Float> o1,
-                                           Map.Entry<String, Float> o2) {
-                            return (o1.getValue()).compareTo(o2.getValue());
-                        }
-                    });
 
     private static ReactApplicationContext reactContext;
 
@@ -189,17 +120,18 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                     .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
                         @Override
                         public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
-                            Log.e("","ok");
+
                             float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
 
                             for (int i = 0; i < labelProbArray[0].length; i++) {
                                 System.out.println(labelProbArray[0][i]);
                             }
 
-                            // WritableArray topLabels = getTopLabels(labelProbArray);
-                            // System.out.println(topLabels);
                             WritableArray result = Arguments.createArray();
                             result.pushString(String.valueOf(labelProbArray[0][0]));
+
+                            System.out.println(result);
+
                             mDelegate.onCustomModel(result);
                             mDelegate.onCustomModelTaskCompleted();
                         }
@@ -240,39 +172,6 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
             }
         }
         return input;
-    }
-
-    private synchronized WritableArray getTopLabels(byte[][] labelProbArray) {
-        for (int i = 0; i < mLabelList.size(); ++i) {
-            sortedLabels.add(
-                    new AbstractMap.SimpleEntry<>(mLabelList.get(i), (labelProbArray[0][i] & 0xff) / 255.0f));
-            if (sortedLabels.size() > RESULTS_TO_SHOW) {
-                sortedLabels.poll();
-            }
-        }
-        WritableArray result = Arguments.createArray();
-        final int size = sortedLabels.size();
-        for (int i = 0; i < size; ++i) {
-            Map.Entry<String, Float> label = sortedLabels.poll();
-            result.pushString(label.getKey() + ":" + label.getValue());
-        }
-        //Log.d("labels: " + result.toString());
-        return result;
-    }
-
-    private List<String> loadLabelList(ThemedReactContext context) {
-        List<String> labelList = new ArrayList<>();
-        try (
-                BufferedReader reader =
-                        new BufferedReader(new InputStreamReader(context.getAssets().open("mobilenet.txt")))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                labelList.add(line);
-            }
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to read label list.", e);
-        }
-        return labelList;
     }
 
 }
