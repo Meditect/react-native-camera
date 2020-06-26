@@ -28,7 +28,8 @@ public class CameraViewManager extends ViewGroupManager<RNCameraView> {
     EVENT_ON_PICTURE_SAVED("onPictureSaved"),
     EVENT_ON_RECORDING_START("onRecordingStart"),
     EVENT_ON_RECORDING_END("onRecordingEnd"),
-    EVENT_ON_TOUCH("onTouch");
+    EVENT_ON_TOUCH("onTouch"),
+    EVENT_CUSTOM_MODEL("onCustomModel");
 
 
     private final String mName;
@@ -210,6 +211,11 @@ public class CameraViewManager extends ViewGroupManager<RNCameraView> {
   @ReactProp(name = "textRecognizerEnabled")
   public void setTextRecognizing(RNCameraView view, boolean textRecognizerEnabled) {
     view.setShouldRecognizeText(textRecognizerEnabled);
+  }
+
+  @ReactProp(name = "customModelEnabled")
+  public void setCustomModel(RNCameraView view, boolean customModelEnabled) {
+    view.setShouldCustomModel(customModelEnabled);
   }
 
   /**---limit scan area addition---**/

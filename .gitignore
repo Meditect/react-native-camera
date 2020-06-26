@@ -28,6 +28,8 @@ project.xcworkspace
 .idea
 .gradle
 local.properties
+.project
+.settings/
 
 # node.js
 #
@@ -49,3 +51,6 @@ package-json.lock
 examples/mlkit/android/app/google-services.json
 examples/mlkit/ios/Pods
 examples/mlkit/ios/mlkit/GoogleService-Info.plist
+
+#tflite files
+android/src/main/assets/

@@ -35,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class RNCameraView extends CameraView implements LifecycleEventListener, BarCodeScannerAsyncTaskDelegate, FaceDetectorAsyncTaskDelegate,
-    BarcodeDetectorAsyncTaskDelegate, TextRecognizerAsyncTaskDelegate, PictureSavedDelegate {
+    BarcodeDetectorAsyncTaskDelegate, TextRecognizerAsyncTaskDelegate, PictureSavedDelegate, CustomModelAsyncTaskDelegate {
   private ThemedReactContext mThemedReactContext;
   private Queue<Promise> mPictureTakenPromises = new ConcurrentLinkedQueue<>();
   private Map<Promise, ReadableMap> mPictureTakenOptions = new ConcurrentHashMap<>();
@@ -59,6 +59,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   public volatile boolean faceDetectorTaskLock = false;
   public volatile boolean googleBarcodeDetectorTaskLock = false;
   public volatile boolean textRecognizerTaskLock = false;
+  public volatile boolean customModelTaskLock = false;
 
   // Scanning-related properties
   private MultiFormatReader mMultiFormatReader;
@@ -69,6 +70,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   private boolean mShouldScanBarCodes = false;
   private boolean mShouldRecognizeText = false;
   private boolean mShouldDetectTouches = false;
+  private boolean mShouldCustomModel = false;
   private int mFaceDetectorMode = RNFaceDetector.FAST_MODE;
   private int mFaceDetectionLandmarks = RNFaceDetector.NO_LANDMARKS;
   private int mFaceDetectionClassifications = RNFaceDetector.NO_CLASSIFICATIONS;
@@ -161,7 +163,9 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
         boolean willCallFaceTask = mShouldDetectFaces && !faceDetectorTaskLock && cameraView instanceof FaceDetectorAsyncTaskDelegate;
         boolean willCallGoogleBarcodeTask = mShouldGoogleDetectBarcodes && !googleBarcodeDetectorTaskLock && cameraView instanceof BarcodeDetectorAsyncTaskDelegate;
         boolean willCallTextTask = mShouldRecognizeText && !textRecognizerTaskLock && cameraView instanceof TextRecognizerAsyncTaskDelegate;
-        if (!willCallBarCodeTask && !willCallFaceTask && !willCallGoogleBarcodeTask && !willCallTextTask) {
+        boolean willCallCustomTask = mShouldCustomModel && !customModelTaskLock && cameraView instanceof CustomModelAsyncTaskDelegate;
+
+        if (!willCallBarCodeTask && !willCallFaceTask && !willCallGoogleBarcodeTask && !willCallTextTask && !willCallCustomTask) {
           return;
         }
 
@@ -204,6 +208,13 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
           TextRecognizerAsyncTaskDelegate delegate = (TextRecognizerAsyncTaskDelegate) cameraView;
           new TextRecognizerAsyncTask(delegate, mThemedReactContext, data, width, height, correctRotation, getResources().getDisplayMetrics().density, getFacing(), getWidth(), getHeight(), mPaddingX, mPaddingY).execute();
         }
+
+        if (willCallCustomTask) {
+          customModelTaskLock = true;
+          CustomModelAsyncTaskDelegate delegate = (CustomModelAsyncTaskDelegate) cameraView;
+          new CustomModelAsyncTask(delegate, mThemedReactContext, data, width, height, correctRotation, getResources().getDisplayMetrics().density, getFacing(), getWidth(), getHeight(), mPaddingX, mPaddingY).execute();
+        }
+        
       }
     });
   }
@@ -351,7 +362,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
       initBarcodeReader();
     }
     this.mShouldScanBarCodes = shouldScanBarCodes;
-    setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText);
+    setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText || mShouldCustomModel);
   }
 
   public void onBarCodeRead(Result barCode, int width, int height) {
@@ -457,7 +468,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
       setupFaceDetector();
     }
     this.mShouldDetectFaces = shouldDetectFaces;
-    setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText);
+    setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText || mShouldCustomModel);
   }
 
   public void onFacesDetected(WritableArray data) {
@@ -494,7 +505,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
       setupBarcodeDetector();
     }
     this.mShouldGoogleDetectBarcodes = shouldDetectBarcodes;
-    setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText);
+    setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText || mShouldCustomModel);
   }
 
   public void setGoogleVisionBarcodeType(int barcodeType) {
@@ -535,7 +546,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
 
   public void setShouldRecognizeText(boolean shouldRecognizeText) {
     this.mShouldRecognizeText = shouldRecognizeText;
-    setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText);
+    setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText || mShouldCustomModel);
   }
 
   public void onTextRecognized(WritableArray serializedData) {
@@ -554,6 +565,33 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   /**
   *
   * End Text Recognition */
+
+  /**
+   *
+   * Custom model
+   */
+
+  public void setShouldCustomModel(boolean shouldCustomModel) {
+    this.mShouldCustomModel = shouldCustomModel;
+    setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText || mShouldCustomModel);
+  }
+
+  public void onCustomModel(WritableArray serializedData) {
+    if (!mShouldCustomModel) {
+      return;
+    }
+
+    RNCameraViewHelper.emitCustomModelEvent(this, serializedData);
+  }
+
+  @Override
+  public void onCustomModelTaskCompleted() {
+    customModelTaskLock = false;
+  }
+
+  /**
+  *
+  * End Custom model */
 
   @Override
   public void onHostResume() {

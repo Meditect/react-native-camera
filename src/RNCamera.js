@@ -1,4 +1,5 @@
 // @flow
+
 import React from 'react';
 import PropTypes from 'prop-types';
 import {
@@ -128,6 +129,10 @@ type TrackedTextFeature = {
   },
   value: string,
   components: Array<TrackedTextFeature>,
+};
+
+type TrackedCustomFeature = {
+  value: string,
 };
 
 type TrackedBarcodeFeature = {
@@ -279,6 +284,7 @@ type PropsType = typeof View.props & {
   faceDetectionClassifications?: number,
   onFacesDetected?: ({ faces: Array<TrackedFaceFeature> }) => void,
   onTextRecognized?: ({ textBlocks: Array<TrackedTextFeature> }) => void,
+  onCustomModel?: ({ labels: Array<TrackedCustomFeature> }) => void,
   captureAudio?: boolean,
   keepAudioSession?: boolean,
   useCamera2Api?: boolean,
@@ -412,6 +418,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
     onGoogleVisionBarcodesDetected: PropTypes.func,
     onFacesDetected: PropTypes.func,
     onTextRecognized: PropTypes.func,
+    onCustomModel: PropTypes.func,
     onSubjectAreaChanged: PropTypes.func,
     trackingEnabled: PropTypes.bool,
     faceDetectionMode: PropTypes.number,
@@ -837,6 +844,7 @@ export default class Camera extends React.Component<PropsType, StateType> {
             onTouch={this._onTouch}
             onFacesDetected={this._onObjectDetected(this.props.onFacesDetected)}
             onTextRecognized={this._onObjectDetected(this.props.onTextRecognized)}
+            onCustomModel={this._onObjectDetected(this.props.onCustomModel)}
             onPictureSaved={this._onPictureSaved}
             onSubjectAreaChanged={this._onSubjectAreaChanged}
           />
@@ -873,6 +881,10 @@ export default class Camera extends React.Component<PropsType, StateType> {
       newProps.textRecognizerEnabled = true;
     }
 
+    if (props.onCustomModel)  {
+      newProps.customModelEnabled = true;
+    }
+
     if (Platform.OS === 'ios') {
       delete newProps.ratio;
     }
@@ -901,6 +913,7 @@ const RNCamera = requireNativeComponent('RNCamera', Camera, {
     googleVisionBarcodeDetectorEnabled: true,
     faceDetectorEnabled: true,
     textRecognizerEnabled: true,
+    customModelEnabled: true,
     importantForAccessibility: true,
     onBarCodeRead: true,
     onGoogleVisionBarcodesDetected: true,
