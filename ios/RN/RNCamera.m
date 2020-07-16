@@ -2211,7 +2211,6 @@ BOOL _sessionInterrupted = NO;
 
 - (void)onCustomModel:(NSDictionary *)event
 {
-    printf("methode custom model");
     if (_onCustomModel && _session) {
         _onCustomModel(event);
     }

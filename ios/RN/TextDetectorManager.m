@@ -15,7 +15,6 @@
     FIRVision *vision = [FIRVision vision];
     self.textRecognizer = [vision onDeviceTextRecognizer];
   }
-  printf("rentré super init text");
   return self;
 }
 
@@ -26,7 +25,6 @@
 
 - (void)findTextBlocksInFrame:(UIImage *)uiImage scaleX:(float)scaleX scaleY:(float) scaleY completed: (void (^)(NSArray * result)) completed
 {
-    printf("rentré dans text");
     self.scaleX = scaleX;
     self.scaleY = scaleY;
     FIRVisionImage *image = [[FIRVisionImage alloc] initWithImage:uiImage];
