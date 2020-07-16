@@ -8,18 +8,24 @@ import android.graphics.BitmapFactory;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 
+import androidx.annotation.NonNull;
+
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.bridge.ReactApplicationContext;
 
+import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.ml.common.FirebaseMLException;
+import com.google.firebase.ml.common.modeldownload.FirebaseModelDownloadConditions;
+import com.google.firebase.ml.common.modeldownload.FirebaseModelManager;
 import com.google.firebase.ml.custom.FirebaseCustomLocalModel;
 import com.google.firebase.ml.custom.FirebaseModelDataType;
 import com.google.firebase.ml.custom.FirebaseModelInputOutputOptions;
@@ -27,6 +33,7 @@ import com.google.firebase.ml.custom.FirebaseModelInputs;
 import com.google.firebase.ml.custom.FirebaseModelInterpreter;
 import com.google.firebase.ml.custom.FirebaseModelInterpreterOptions;
 import com.google.firebase.ml.custom.FirebaseModelOutputs;
+import com.google.firebase.ml.custom.FirebaseCustomRemoteModel;
 
 import org.reactnative.camera.utils.ImageDimensions;
 
@@ -59,6 +66,8 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
   private FirebaseModelInputOutputOptions mDataOptions;
 
+  private String[] ref_filenames = new String[]{"Voltarène/Ref.jpg", "Flucazol/Ref.jpg", "Primalan/Ref.jpg", "Ery/Ref.jpg", "Doliprane/Ref.jpg", "Mag2/Ref.jpg", "Co-Arinate_fr/Ref.jpg", "Co-Arinate_en/Ref.jpg", "Tetanea/Ref.jpg", "Nifluril_fr/Ref.jpg", "Efferalgan_effervescent_500mg_en/Ref.jpg", "Efferalgan_effervescent_500mg_fr/Ref.jpg", "Efferalgan_poudreEffervescentePediatrique_en/Ref.jpg", "Efferalgan_codeine_30mg_fr/Ref.jpg", "Efferalgan_suppositoires_150mg_fr/Ref.jpg", "Efferalgan_suppositoires_80mg_fr/Ref.jpg", "Efferalgan_suppositoires_300mg_fr/Ref.jpg", "Aspirine_vitamineC_330mg_fr/Ref.jpg", "Efferalgan_suppositoires_600mg_fr/Ref.jpg", "Forlax_fr/Ref.jpg", "Forlax_en/Ref.jpg", "Vogalène_en/Ref.jpg", "Efferalgan_effervescent_1000mg_en/Ref.jpg", "Efferalgan_comprimes_500mg_fr/Ref.jpg", "Efferalgan_comprimes_1000mg_fr/Ref.jpg", "Efferalgan_suppositoires_80mg_en/Ref.jpg", "Aspirine_1000mg_en/Ref.jpg", "Efferalgan_poudreEffervescentePediatrique_fr/Ref.jpg", "Efferalgan_pediatrique_250mg_fr/Ref.jpg", "Efferalgan_suppositoires_300mg_en/Ref.jpg", "Efferalgan_vitamineC_500mg_fr/Ref.jpg", "Nifluril_en/Ref.jpg"};
+
   public CustomModelAsyncTask(
           CustomModelAsyncTaskDelegate delegate,
           ThemedReactContext themedReactContext,
@@ -89,60 +98,110 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
   @Override
   protected Void doInBackground(Void... ignored) {
 
-    System.out.println("rentré dans background");
     if (isCancelled() || mDelegate == null) {
       return null;
     }
 
     try {
 
-      // Creation of the firebase interpreter with the tflite model (assets folder)
-
       mDataOptions = new FirebaseModelInputOutputOptions.Builder()
               .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
-              .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 7})
+              .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 32})
               .build();
 
-      FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mnist_model_quant.tflite").build();
+      // initialization of local and remote models
 
-      FirebaseModelInterpreterOptions modelOptions = new FirebaseModelInterpreterOptions.Builder(localModel).build();
+      final FirebaseCustomRemoteModel remoteModel = new FirebaseCustomRemoteModel.Builder("Drug-Detector").build();
 
-      mInterpreter = FirebaseModelInterpreter.getInstance(modelOptions);
+      final FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("model_v2_quant.tflite").build();
 
-      float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
-
-      FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
-
-      mInterpreter
-              .run(inputs, mDataOptions)
-              .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
+      FirebaseModelManager.getInstance().isModelDownloaded(remoteModel)
+              .addOnSuccessListener(new OnSuccessListener<Boolean>() {
                 @Override
-                public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
+                public void onSuccess(Boolean isDownloaded) {
+                  FirebaseModelInterpreterOptions options;
 
-                  float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
+                  // Create the interpreter for the local or remote model if downloaded
 
-                  WritableArray result = Arguments.createArray();
+                  if (isDownloaded) {
+                    System.out.println("utilise distant");
+                    options = new FirebaseModelInterpreterOptions.Builder(remoteModel).build();
+                  } else {
+                    System.out.println("utilise local");
+                    options = new FirebaseModelInterpreterOptions.Builder(localModel).build();
+                  }
+                  try {
+                    mInterpreter = FirebaseModelInterpreter.getInstance(options);
+                    float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
 
-                  //Get the probabilities for each label
-                  for (int i = 0; i < labelProbArray[0].length; i++) {
-                    result.pushString(String.valueOf(labelProbArray[0][i]));
+                    FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
+
+                    mInterpreter
+                            .run(inputs, mDataOptions)
+                            .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
+                              @Override
+                              public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
+
+                                float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
+
+                                WritableArray result = Arguments.createArray();
+                                WritableArray medicaments = Arguments.createArray();
+
+                                float max = -10000;
+                                float max2 = -10000;
+                                float max3 = -10000;
+                                int index = 0;
+                                int index2 = 0;
+                                int index3 = 0;
+
+                                for (int i = 0; i < labelProbArray[0].length; i++) {
+                                  result.pushString(String.valueOf(labelProbArray[0][i]));
+                                  if(max < labelProbArray[0][i])
+                                  {
+                                    max = labelProbArray[0][i];
+                                    index = i;
+                                  }
+                                }
+
+                                for (int i = 0; i < labelProbArray[0].length; i++) {
+                                  if(max2 < labelProbArray[0][i] && labelProbArray[0][i] != max )
+                                  {
+                                    max2 = labelProbArray[0][i];
+                                    index2 = i;
+                                  }
+                                }
+
+                                for (int i = 0; i < labelProbArray[0].length; i++) {
+                                  if(max3 < labelProbArray[0][i] && labelProbArray[0][i] != max && labelProbArray[0][i] != max2 )
+                                  {
+                                    max3 = labelProbArray[0][i];
+                                    index3 = i;
+                                  }
+                                }
+
+                                medicaments.pushString(ref_filenames[index]);
+                                medicaments.pushString(ref_filenames[index2]);
+                                medicaments.pushString(ref_filenames[index3]);
+
+                                mDelegate.onCustomModel(medicaments);
+                                mDelegate.onCustomModelTaskCompleted();
+                              }
+                            })
+                            .addOnFailureListener(
+                                    new OnFailureListener() {
+                                      @Override
+                                      public void onFailure(Exception e) {
+                                        mDelegate.onCustomModelTaskCompleted();
+                                      }
+                                    });
+                  } catch (FirebaseMLException | FileNotFoundException e) {
+                    e.printStackTrace();
                   }
 
-                  mDelegate.onCustomModel(result);
-                  mDelegate.onCustomModelTaskCompleted();
                 }
-              })
-              .addOnFailureListener(
-                      new OnFailureListener() {
-                        @Override
-                        public void onFailure(Exception e) {
-                          Log.e(TAG, "Custom model task failed" + e);
-                          mDelegate.onCustomModelTaskCompleted();
-                        }
-                      });
+              });
 
-    } catch (FirebaseMLException | FileNotFoundException e) {
-      //Toast.makeText(getReactApplicationContext(), "model load failed", 4).show();
+    } catch (FirebaseMLException e) {
       e.printStackTrace();
     }
     return null;

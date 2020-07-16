@@ -6,6 +6,7 @@
 #import "FaceDetectorManagerMlkit.h"
 #import "BarcodeDetectorManagerMlkit.h"
 #import "TextDetectorManager.h"
+#import "CustomModelManager.h"
 
 @class RNCamera;
 @class RNCustomWhiteBalanceSettings;
@@ -46,6 +47,7 @@
 @property(nonatomic, assign) BOOL isRecordingInterrupted;
 @property(nonatomic, assign) BOOL isDetectingFaces;
 @property(nonatomic, assign) BOOL canReadText;
+@property(nonatomic, assign) BOOL canDetectCustom;
 @property(nonatomic, assign) BOOL canDetectFaces;
 @property(nonatomic, assign) BOOL canDetectBarcodes;
 @property(nonatomic, assign) BOOL captureAudio;
@@ -98,6 +100,7 @@
 - (void)pausePreview;
 - (void)setupOrDisablePinchZoom;
 - (void)setupOrDisableBarcodeScanner;
+- (void)setupOrDisableCustomDetector;
 - (void)setupOrDisableTextDetector;
 - (void)setupOrDisableFaceDetector;
 - (void)setupOrDisableBarcodeDetector;
@@ -105,6 +108,7 @@
 - (void)onMountingError:(NSDictionary *)event;
 - (void)onCodeRead:(NSDictionary *)event;
 - (void)onFacesDetected:(NSDictionary *)event;
+- (void)onCustomModel:(NSDictionary *)event;
 - (void)onPictureTaken:(NSDictionary *)event;
 - (void)onPictureSaved:(NSDictionary *)event;
 - (void)onRecordingStart:(NSDictionary *)event;

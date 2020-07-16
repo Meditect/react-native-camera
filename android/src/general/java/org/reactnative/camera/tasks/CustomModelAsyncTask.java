@@ -1,6 +1,5 @@
 package org.reactnative.camera.tasks;
 
-import android.content.res.AssetManager;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
@@ -9,18 +8,24 @@ import android.graphics.BitmapFactory;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 
+import androidx.annotation.NonNull;
+
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.bridge.ReactApplicationContext;
 
+import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.ml.common.FirebaseMLException;
+import com.google.firebase.ml.common.modeldownload.FirebaseModelDownloadConditions;
+import com.google.firebase.ml.common.modeldownload.FirebaseModelManager;
 import com.google.firebase.ml.custom.FirebaseCustomLocalModel;
 import com.google.firebase.ml.custom.FirebaseModelDataType;
 import com.google.firebase.ml.custom.FirebaseModelInputOutputOptions;
@@ -28,6 +33,7 @@ import com.google.firebase.ml.custom.FirebaseModelInputs;
 import com.google.firebase.ml.custom.FirebaseModelInterpreter;
 import com.google.firebase.ml.custom.FirebaseModelInterpreterOptions;
 import com.google.firebase.ml.custom.FirebaseModelOutputs;
+import com.google.firebase.ml.custom.FirebaseCustomRemoteModel;
 
 import org.reactnative.camera.utils.ImageDimensions;
 
@@ -48,6 +54,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
     //Custom Model variables
 
+    // Dimensions required by the custom model
     private static final int DIM_BATCH_SIZE = 1;
     private static final int DIM_PIXEL_SIZE = 3;
     private static final int DIM_IMG_SIZE_X = 400; //368;
@@ -94,58 +101,87 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
             return null;
         }
 
-        //mLabelList = loadLabelList(mThemedReactContext);
-
         try {
+
+            // Creation of the firebase interpreter with the tflite model (assets folder)
 
             mDataOptions = new FirebaseModelInputOutputOptions.Builder()
                     .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
                     .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 7})
                     .build();
 
-            FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mnist_model_quant.tflite").build();
+            final FirebaseCustomRemoteModel remoteModel = new FirebaseCustomRemoteModel.Builder("Drug-Detector").build();
 
-            FirebaseModelInterpreterOptions modelOptions = new FirebaseModelInterpreterOptions.Builder(localModel).build();
+            FirebaseModelDownloadConditions conditions = new FirebaseModelDownloadConditions.Builder()
+                    .requireWifi()
+                    .build();
 
-            mInterpreter = FirebaseModelInterpreter.getInstance(modelOptions);
-
-            // custom model
-
-            float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
-
-            FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
-
-            mInterpreter
-                    .run(inputs, mDataOptions)
-                    .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
+            FirebaseModelManager.getInstance().download(remoteModel, conditions)
+                    .addOnCompleteListener(new OnCompleteListener<Void>() {
                         @Override
-                        public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
+                        public void onComplete(@NonNull Task<Void> task) {
+                            System.out.println("téléchargé");
+                        }
+                    });
 
-                            float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
+            final FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mnist_model_quant.tflite").build();
 
-                            for (int i = 0; i < labelProbArray[0].length; i++) {
-                                System.out.println(labelProbArray[0][i]);
+            //FirebaseModelInterpreterOptions modelOptions = new FirebaseModelInterpreterOptions.Builder(localModel).build();
+
+            //mInterpreter = FirebaseModelInterpreter.getInstance(modelOptions);
+
+            FirebaseModelManager.getInstance().isModelDownloaded(remoteModel)
+                    .addOnSuccessListener(new OnSuccessListener<Boolean>() {
+                        @Override
+                        public void onSuccess(Boolean isDownloaded) {
+                            FirebaseModelInterpreterOptions options;
+                            if (isDownloaded) {
+                                options = new FirebaseModelInterpreterOptions.Builder(remoteModel).build();
+                                System.out.println("utilise distant");
+                            } else {
+                                options = new FirebaseModelInterpreterOptions.Builder(localModel).build();
+                            }
+                            try {
+                                mInterpreter = FirebaseModelInterpreter.getInstance(options);
+                                float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
+
+                                FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
+
+                                mInterpreter
+                                        .run(inputs, mDataOptions)
+                                        .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
+                                            @Override
+                                            public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
+
+                                                float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
+
+                                                WritableArray result = Arguments.createArray();
+
+                                                //Get the probabilities for each label
+                                                for (int i = 0; i < labelProbArray[0].length; i++) {
+                                                    result.pushString(String.valueOf(labelProbArray[0][i]));
+                                                }
+
+                                                mDelegate.onCustomModel(result);
+                                                mDelegate.onCustomModelTaskCompleted();
+                                            }
+                                        })
+                                        .addOnFailureListener(
+                                                new OnFailureListener() {
+                                                    @Override
+                                                    public void onFailure(Exception e) {
+                                                        Log.e(TAG, "Custom model task failed" + e);
+                                                        mDelegate.onCustomModelTaskCompleted();
+                                                    }
+                                                });
+                            } catch (FirebaseMLException | FileNotFoundException e) {
+                                e.printStackTrace();
                             }
 
-                            WritableArray result = Arguments.createArray();
-                            result.pushString(String.valueOf(labelProbArray[0][0]));
-
-                            System.out.println(result);
-
-                            mDelegate.onCustomModel(result);
-                            mDelegate.onCustomModelTaskCompleted();
                         }
-                    })
-                    .addOnFailureListener(
-                            new OnFailureListener() {
-                                @Override
-                                public void onFailure(Exception e) {
-                                    Log.e(TAG, "Custom model task failed" + e);
-                                    mDelegate.onCustomModelTaskCompleted();
-                                }
-                            });
+                    });
 
-        } catch (FirebaseMLException | FileNotFoundException e) {
+        } catch (FirebaseMLException e) {
             //Toast.makeText(getReactApplicationContext(), "model load failed", 4).show();
             e.printStackTrace();
         }
@@ -154,13 +190,17 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
     private synchronized float[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
 
+        // Convert the YUV byte array into a bitmap
         ByteArrayOutputStream out = new ByteArrayOutputStream();
+
         YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
         yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
         byte[] imageBytes = out.toByteArray();
+
         Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
         Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
 
+        // Create a 4 dimension array with the reduced Bitmap informations
         float[][][][] input = new float[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
 
         for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
