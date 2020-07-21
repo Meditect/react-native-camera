@@ -24,27 +24,71 @@
 - (void)runCustomModel:(UIImage *)uiImage scaleX:(float)scaleX scaleY:(float) scaleY completed: (void (^)(NSArray * result)) completed
 {
 
-    NSArray *ref_filenames = @[@"Voltarène/Ref.jpg", @"Flucazol/Ref.jpg", @"Primalan/Ref.jpg", @"Ery/Ref.jpg", @"Doliprane/Ref.jpg", @"Mag2/Ref.jpg", @"Co-Arinate_fr/Ref.jpg", @"Co-Arinate_en/Ref.jpg", @"Tetanea/Ref.jpg", @"Nifluril_fr/Ref.jpg", @"Efferalgan_effervescent_500mg_en/Ref.jpg", @"Efferalgan_effervescent_500mg_fr/Ref.jpg", @"Efferalgan_poudreEffervescentePediatrique_en/Ref.jpg", @"Efferalgan_codeine_30mg_fr/Ref.jpg", @"Efferalgan_suppositoires_150mg_fr/Ref.jpg", @"Efferalgan_suppositoires_80mg_fr/Ref.jpg", @"Efferalgan_suppositoires_300mg_fr/Ref.jpg", @"Aspirine_vitamineC_330mg_fr/Ref.jpg", @"Efferalgan_suppositoires_600mg_fr/Ref.jpg", @"Forlax_fr/Ref.jpg", @"Forlax_en/Ref.jpg", @"Vogalène_en/Ref.jpg", @"Efferalgan_effervescent_1000mg_en/Ref.jpg", @"Efferalgan_comprimes_500mg_fr/Ref.jpg", @"Efferalgan_comprimes_1000mg_fr/Ref.jpg", @"Efferalgan_suppositoires_80mg_en/Ref.jpg", @"Aspirine_1000mg_en/Ref.jpg", @"Efferalgan_poudreEffervescentePediatrique_fr/Ref.jpg", @"Efferalgan_pediatrique_250mg_fr/Ref.jpg", @"Efferalgan_suppositoires_300mg_en/Ref.jpg", @"Efferalgan_vitamineC_500mg_fr/Ref.jpg", @"Nifluril_en/Ref.jpg"];
+    NSArray *ref_filenames = @[@"Voltarène"
+      ,@"Vogalène_en"
+      ,@"Tetanea"
+      ,@"Primalan"
+      ,@"Nifluril_fr"
+      ,@"Nifluril_en"
+      ,@"Mag2"
+      ,@"Forlax_fr"
+      ,@"Forlax_en"
+      ,@"Flucazol"
+      ,@"Ery"
+      ,@"Efferalgan_suppositoires_600mg_fr"
+      ,@"Efferalgan_suppositoires_300mg_fr"
+      ,@"Efferalgan_suppositoires_150mg_fr"
+      ,@"Efferalgan_suppositoires_80mg_fr"
+      ,@"Efferalgan_poudreEffervescentePediatrique_en"
+      ,@"Efferalgan_effervescent_500mg_fr"
+      ,@"Efferalgan_effervescent_500mg_en"
+      ,@"Efferalgan_codeine_30mg_fr"
+      ,@"Doliprane"
+      ,@"Co-Arinate_fr"
+      ,@"Co-Arinate_en"
+      ,@"ChibroCadron"
+      ,@"Bimalaril"
+      ,@"Balsolène"
+      ,@"Augmentin"
+      ,@"Aspirine_vitamineC_330mg_fr"
+      ,@"Efferalgan_vitamineC_500mg_fr"
+      ,@"Efferalgan_suppositoires_300mg_en"
+      ,@"Efferalgan_suppositoires_80mg_en"
+      ,@"Efferalgan_poudreEffervescentePediatrique_fr"
+      ,@"Efferalgan_pediatrique_250mg_fr"
+      ,@"Efferalgan_effervescent_1000mg_en"
+      ,@"Efferalgan_comprimes_1000mg_fr"
+      ,@"Efferalgan_comprimes_500mg_fr"
+      ,@"Aspirine_1000mg_en"];
 
-    NSString *modelPath = [NSBundle.mainBundle pathForResource:@"model_v2_quant"
+    NSString *modelPath = [NSBundle.mainBundle pathForResource:@"model_v3"
                                                     ofType:@"tflite"];
     FIRCustomLocalModel *localModel =
         [[FIRCustomLocalModel alloc] initWithModelPath:modelPath];
 
-    FIRModelInterpreter *interpreter =
-        [FIRModelInterpreter modelInterpreterForLocalModel:localModel];
+    FIRCustomRemoteModel *remoteModel =
+        [[FIRCustomRemoteModel alloc] initWithName:@"Drug-Detector"];
+
+    FIRModelInterpreter *interpreter;
+    if ([[FIRModelManager modelManager] isModelDownloaded:remoteModel]) {
+      printf("utilise distant");
+      interpreter = [FIRModelInterpreter modelInterpreterForRemoteModel:remoteModel];
+    } else {
+      printf("utilise local");
+      interpreter = [FIRModelInterpreter modelInterpreterForLocalModel:localModel];
+    }
 
     FIRModelInputOutputOptions *ioOptions = [[FIRModelInputOutputOptions alloc] init];
 
     NSError *error;
     [ioOptions setInputFormatForIndex:0
                                 type:FIRModelElementTypeFloat32
-                          dimensions:@[@1, @400, @400, @3]
+                          dimensions:@[@1, @256, @256, @3]
                                 error:&error];
 
     [ioOptions setOutputFormatForIndex:0
                                   type:FIRModelElementTypeFloat32
-                            dimensions:@[@1, @32]
+                            dimensions:@[@1, @36]
                                 error:&error];
 
     CGImageRef image = uiImage.CGImage;

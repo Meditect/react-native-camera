@@ -66,7 +66,42 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
   private FirebaseModelInputOutputOptions mDataOptions;
 
-  private String[] ref_filenames = new String[]{"Voltarène/Ref.jpg", "Flucazol/Ref.jpg", "Primalan/Ref.jpg", "Ery/Ref.jpg", "Doliprane/Ref.jpg", "Mag2/Ref.jpg", "Co-Arinate_fr/Ref.jpg", "Co-Arinate_en/Ref.jpg", "Tetanea/Ref.jpg", "Nifluril_fr/Ref.jpg", "Efferalgan_effervescent_500mg_en/Ref.jpg", "Efferalgan_effervescent_500mg_fr/Ref.jpg", "Efferalgan_poudreEffervescentePediatrique_en/Ref.jpg", "Efferalgan_codeine_30mg_fr/Ref.jpg", "Efferalgan_suppositoires_150mg_fr/Ref.jpg", "Efferalgan_suppositoires_80mg_fr/Ref.jpg", "Efferalgan_suppositoires_300mg_fr/Ref.jpg", "Aspirine_vitamineC_330mg_fr/Ref.jpg", "Efferalgan_suppositoires_600mg_fr/Ref.jpg", "Forlax_fr/Ref.jpg", "Forlax_en/Ref.jpg", "Vogalène_en/Ref.jpg", "Efferalgan_effervescent_1000mg_en/Ref.jpg", "Efferalgan_comprimes_500mg_fr/Ref.jpg", "Efferalgan_comprimes_1000mg_fr/Ref.jpg", "Efferalgan_suppositoires_80mg_en/Ref.jpg", "Aspirine_1000mg_en/Ref.jpg", "Efferalgan_poudreEffervescentePediatrique_fr/Ref.jpg", "Efferalgan_pediatrique_250mg_fr/Ref.jpg", "Efferalgan_suppositoires_300mg_en/Ref.jpg", "Efferalgan_vitamineC_500mg_fr/Ref.jpg", "Nifluril_en/Ref.jpg"};
+  private String[] ref_filenames = new String[]{"Voltarène"
+    ,"Vogalène_en"
+    ,"Tetanea"
+    ,"Primalan"
+    ,"Nifluril_fr"
+    ,"Nifluril_en"
+    ,"Mag2"
+    ,"Forlax_fr"
+    ,"Forlax_en"
+    ,"Flucazol"
+    ,"Ery"
+    ,"Efferalgan_suppositoires_600mg_fr"
+    ,"Efferalgan_suppositoires_300mg_fr"
+    ,"Efferalgan_suppositoires_150mg_fr"
+    ,"Efferalgan_suppositoires_80mg_fr"
+    ,"Efferalgan_poudreEffervescentePediatrique_en"
+    ,"Efferalgan_effervescent_500mg_fr"
+    ,"Efferalgan_effervescent_500mg_en"
+    ,"Efferalgan_codeine_30mg_fr"
+    ,"Doliprane"
+    ,"Co-Arinate_fr"
+    ,"Co-Arinate_en"
+    ,"ChibroCadron"
+    ,"Bimalaril"
+    ,"Balsolène"
+    ,"Augmentin"
+    ,"Aspirine_vitamineC_330mg_fr"
+    ,"Efferalgan_vitamineC_500mg_fr"
+    ,"Efferalgan_suppositoires_300mg_en"
+    ,"Efferalgan_suppositoires_80mg_en"
+    ,"Efferalgan_poudreEffervescentePediatrique_fr"
+    ,"Efferalgan_pediatrique_250mg_fr"
+    ,"Efferalgan_effervescent_1000mg_en"
+    ,"Efferalgan_comprimes_1000mg_fr"
+    ,"Efferalgan_comprimes_500mg_fr"
+    ,"Aspirine_1000mg_en"};
 
   public CustomModelAsyncTask(
           CustomModelAsyncTaskDelegate delegate,
@@ -106,14 +141,14 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
       mDataOptions = new FirebaseModelInputOutputOptions.Builder()
               .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
-              .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 32})
+              .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 36})
               .build();
 
       // initialization of local and remote models
 
       final FirebaseCustomRemoteModel remoteModel = new FirebaseCustomRemoteModel.Builder("Drug-Detector").build();
 
-      final FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("model_v2_quant.tflite").build();
+      final FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("model_v3.tflite").build();
 
       FirebaseModelManager.getInstance().isModelDownloaded(remoteModel)
               .addOnSuccessListener(new OnSuccessListener<Boolean>() {
