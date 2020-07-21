@@ -57,8 +57,8 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
   // Dimensions required by the custom model
   private static final int DIM_BATCH_SIZE = 1;
   private static final int DIM_PIXEL_SIZE = 3;
-  private static final int DIM_IMG_SIZE_X = 400; //368;
-  private static final int DIM_IMG_SIZE_Y = 400;//368;
+  private static final int DIM_IMG_SIZE_X = 256; //368;
+  private static final int DIM_IMG_SIZE_Y = 256;//368;
 
   private static ReactApplicationContext reactContext;
 
