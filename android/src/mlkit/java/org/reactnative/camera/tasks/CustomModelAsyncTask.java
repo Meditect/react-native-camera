@@ -1,8 +1,13 @@
+
 package org.reactnative.camera.tasks;
 
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
+import android.renderscript.Allocation;
+import android.renderscript.Element;
+import android.renderscript.RenderScript;
+import android.renderscript.ScriptIntrinsicYuvToRGB;
 import android.util.Log;
 import android.graphics.BitmapFactory;
 import android.graphics.Bitmap;
@@ -67,41 +72,41 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
   private FirebaseModelInputOutputOptions mDataOptions;
 
   private String[] ref_filenames = new String[]{"Voltarène"
-    ,"Vogalène_en"
-    ,"Tetanea"
-    ,"Primalan"
-    ,"Nifluril_fr"
-    ,"Nifluril_en"
-    ,"Mag2"
-    ,"Forlax_fr"
-    ,"Forlax_en"
-    ,"Flucazol"
-    ,"Ery"
-    ,"Efferalgan_suppositoires_600mg_fr"
-    ,"Efferalgan_suppositoires_300mg_fr"
-    ,"Efferalgan_suppositoires_150mg_fr"
-    ,"Efferalgan_suppositoires_80mg_fr"
-    ,"Efferalgan_poudreEffervescentePediatrique_en"
-    ,"Efferalgan_effervescent_500mg_fr"
-    ,"Efferalgan_effervescent_500mg_en"
-    ,"Efferalgan_codeine_30mg_fr"
-    ,"Doliprane"
-    ,"Co-Arinate_fr"
-    ,"Co-Arinate_en"
-    ,"ChibroCadron"
-    ,"Bimalaril"
-    ,"Balsolène"
-    ,"Augmentin"
-    ,"Aspirine_vitamineC_330mg_fr"
-    ,"Efferalgan_vitamineC_500mg_fr"
-    ,"Efferalgan_suppositoires_300mg_en"
-    ,"Efferalgan_suppositoires_80mg_en"
-    ,"Efferalgan_poudreEffervescentePediatrique_fr"
-    ,"Efferalgan_pediatrique_250mg_fr"
-    ,"Efferalgan_effervescent_1000mg_en"
-    ,"Efferalgan_comprimes_1000mg_fr"
-    ,"Efferalgan_comprimes_500mg_fr"
-    ,"Aspirine_1000mg_en"};
+          ,"Vogalène_en"
+          ,"Tetanea"
+          ,"Primalan"
+          ,"Nifluril_fr"
+          ,"Nifluril_en"
+          ,"Mag2"
+          ,"Forlax_fr"
+          ,"Forlax_en"
+          ,"Flucazol"
+          ,"Ery"
+          ,"Efferalgan_suppositoires_600mg_fr"
+          ,"Efferalgan_suppositoires_300mg_fr"
+          ,"Efferalgan_suppositoires_150mg_fr"
+          ,"Efferalgan_suppositoires_80mg_fr"
+          ,"Efferalgan_poudreEffervescentePediatrique_en"
+          ,"Efferalgan_effervescent_500mg_fr"
+          ,"Efferalgan_effervescent_500mg_en"
+          ,"Efferalgan_codeine_30mg_fr"
+          ,"Doliprane"
+          ,"Co-Arinate_fr"
+          ,"Co-Arinate_en"
+          ,"ChibroCadron"
+          ,"Bimalaril"
+          ,"Balsolène"
+          ,"Augmentin"
+          ,"Aspirine_vitamineC_330mg_fr"
+          ,"Efferalgan_vitamineC_500mg_fr"
+          ,"Efferalgan_suppositoires_300mg_en"
+          ,"Efferalgan_suppositoires_80mg_en"
+          ,"Efferalgan_poudreEffervescentePediatrique_fr"
+          ,"Efferalgan_pediatrique_250mg_fr"
+          ,"Efferalgan_effervescent_1000mg_en"
+          ,"Efferalgan_comprimes_1000mg_fr"
+          ,"Efferalgan_comprimes_500mg_fr"
+          ,"Aspirine_1000mg_en"};
 
   public CustomModelAsyncTask(
           CustomModelAsyncTaskDelegate delegate,
@@ -182,6 +187,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                                 WritableArray result = Arguments.createArray();
                                 WritableArray medicaments = Arguments.createArray();
 
+
                                 float max = -10000;
                                 float max2 = -10000;
                                 float max3 = -10000;
@@ -245,13 +251,33 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
   private synchronized float[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
 
     // Convert the YUV byte array into a bitmap
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    // ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-    YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
-    yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
-    byte[] imageBytes = out.toByteArray();
+    // YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
+    // yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
+    // byte[] imageBytes = out.toByteArray();
 
-    Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+    // Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+
+    System.out.println("nouvelle methode general");
+
+    RenderScript rs = RenderScript.create(mThemedReactContext);
+    ScriptIntrinsicYuvToRGB yuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(rs, Element.U8_4(rs));
+
+    Allocation in = Allocation.createSized(rs, Element.U8(rs), mImgData.length);
+
+    Bitmap bitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+
+    Allocation out = Allocation.createFromBitmap(rs,bitmap);
+
+    yuvToRgbIntrinsic.setInput(in);
+
+    in.copyFrom(mImgData);
+
+    yuvToRgbIntrinsic.forEach(out);
+
+    out.copyTo(bitmap);
+
     Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
 
     // Create a 4 dimension array with the reduced Bitmap informations
