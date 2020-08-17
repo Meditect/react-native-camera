@@ -1,6 +1,7 @@
 
 package org.reactnative.camera.tasks;
 
+import android.content.res.AssetManager;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
@@ -26,6 +27,9 @@ import com.google.android.gms.tasks.OnSuccessListener;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Arrays;
 
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.ml.common.FirebaseMLException;
@@ -41,11 +45,13 @@ import com.google.firebase.ml.custom.FirebaseModelOutputs;
 import com.google.firebase.ml.custom.FirebaseCustomRemoteModel;
 
 import org.reactnative.camera.utils.ImageDimensions;
+import org.reactnative.mlcustom.MLCustomDetector;
 
 public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void> {
 
   private CustomModelAsyncTaskDelegate mDelegate;
   private ThemedReactContext mThemedReactContext;
+  private MLCustomDetector mCustomDetector;
   private byte[] mImageData;
   private int mWidth;
   private int mHeight;
@@ -59,58 +65,16 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
   //Custom Model variables
 
-  // Dimensions required by the custom model
-  private static final int DIM_BATCH_SIZE = 1;
-  private static final int DIM_PIXEL_SIZE = 3;
-  private static final int DIM_IMG_SIZE_X = 256; //368;
-  private static final int DIM_IMG_SIZE_Y = 256;//368;
-
   private static ReactApplicationContext reactContext;
 
   private FirebaseModelInterpreter mInterpreter;
 
   private FirebaseModelInputOutputOptions mDataOptions;
 
-  private String[] ref_filenames = new String[]{"Voltarène"
-          ,"Vogalène_en"
-          ,"Tetanea"
-          ,"Primalan"
-          ,"Nifluril_fr"
-          ,"Nifluril_en"
-          ,"Mag2"
-          ,"Forlax_fr"
-          ,"Forlax_en"
-          ,"Flucazol"
-          ,"Ery"
-          ,"Efferalgan_suppositoires_600mg_fr"
-          ,"Efferalgan_suppositoires_300mg_fr"
-          ,"Efferalgan_suppositoires_150mg_fr"
-          ,"Efferalgan_suppositoires_80mg_fr"
-          ,"Efferalgan_poudreEffervescentePediatrique_en"
-          ,"Efferalgan_effervescent_500mg_fr"
-          ,"Efferalgan_effervescent_500mg_en"
-          ,"Efferalgan_codeine_30mg_fr"
-          ,"Doliprane"
-          ,"Co-Arinate_fr"
-          ,"Co-Arinate_en"
-          ,"ChibroCadron"
-          ,"Bimalaril"
-          ,"Balsolène"
-          ,"Augmentin"
-          ,"Aspirine_vitamineC_330mg_fr"
-          ,"Efferalgan_vitamineC_500mg_fr"
-          ,"Efferalgan_suppositoires_300mg_en"
-          ,"Efferalgan_suppositoires_80mg_en"
-          ,"Efferalgan_poudreEffervescentePediatrique_fr"
-          ,"Efferalgan_pediatrique_250mg_fr"
-          ,"Efferalgan_effervescent_1000mg_en"
-          ,"Efferalgan_comprimes_1000mg_fr"
-          ,"Efferalgan_comprimes_500mg_fr"
-          ,"Aspirine_1000mg_en"};
-
   public CustomModelAsyncTask(
           CustomModelAsyncTaskDelegate delegate,
           ThemedReactContext themedReactContext,
+          MLCustomDetector customDetector,
           byte[] imageData,
           int width,
           int height,
@@ -123,6 +87,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
           int viewPaddingTop
   ) {
     mThemedReactContext = themedReactContext;
+    mCustomDetector = customDetector;
     mDelegate = delegate;
     mImageData = imageData;
     mWidth = width;
@@ -144,105 +109,51 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
     try {
 
-      mDataOptions = new FirebaseModelInputOutputOptions.Builder()
-              .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
-              .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 36})
-              .build();
+        mInterpreter = mCustomDetector.getDetector();
 
-      // initialization of local and remote models
+        mDataOptions = mCustomDetector.getOptions();
 
-      final FirebaseCustomRemoteModel remoteModel = new FirebaseCustomRemoteModel.Builder("Drug-Detector").build();
+        final float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
 
-      final FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("model_v3.tflite").build();
+        FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
 
-      FirebaseModelManager.getInstance().isModelDownloaded(remoteModel)
-              .addOnSuccessListener(new OnSuccessListener<Boolean>() {
-                @Override
-                public void onSuccess(Boolean isDownloaded) {
-                  FirebaseModelInterpreterOptions options;
+        mInterpreter
+                .run(inputs, mDataOptions)
+                .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
+                    @Override
+                    public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
 
-                  // Create the interpreter for the local or remote model if downloaded
+                    float[][][] labelProbArray = firebaseModelOutputs.<float[][][]>getOutput(0);
 
-                  if (isDownloaded) {
-                    System.out.println("utilise distant");
-                    options = new FirebaseModelInterpreterOptions.Builder(remoteModel).build();
-                  } else {
-                    System.out.println("utilise local");
-                    options = new FirebaseModelInterpreterOptions.Builder(localModel).build();
-                  }
-                  try {
-                    mInterpreter = FirebaseModelInterpreter.getInstance(options);
-                    float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
+                    WritableArray result = Arguments.createArray();
+                    String nomMedicament = "";
 
-                    FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
+                    result.pushString(String.valueOf(labelProbArray[0][0][0]));
 
-                    mInterpreter
-                            .run(inputs, mDataOptions)
-                            .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
-                              @Override
-                              public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
+                    for (int i = 1; i < labelProbArray[0][0].length; i++) {
+                      if (labelProbArray[0][0][i] != 0) {
+                    
+                        nomMedicament += Character.toString((char) labelProbArray[0][0][i]);
 
-                                float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
+                      }
+                    } 
 
-                                WritableArray result = Arguments.createArray();
-                                WritableArray medicaments = Arguments.createArray();
+                    result.pushString(nomMedicament);
 
+                    mDelegate.onCustomModel(result);
+                    mDelegate.onCustomModelTaskCompleted();
+                    }
+                })
+                .addOnFailureListener(
+                        new OnFailureListener() {
+                            @Override
+                            public void onFailure(Exception e) {
+                            e.printStackTrace();
+                            mDelegate.onCustomModelTaskCompleted();
+                            }
+                        });
 
-                                float max = -10000;
-                                float max2 = -10000;
-                                float max3 = -10000;
-                                int index = 0;
-                                int index2 = 0;
-                                int index3 = 0;
-
-                                for (int i = 0; i < labelProbArray[0].length; i++) {
-                                  result.pushString(String.valueOf(labelProbArray[0][i]));
-                                  if(max < labelProbArray[0][i])
-                                  {
-                                    max = labelProbArray[0][i];
-                                    index = i;
-                                  }
-                                }
-
-                                for (int i = 0; i < labelProbArray[0].length; i++) {
-                                  if(max2 < labelProbArray[0][i] && labelProbArray[0][i] != max )
-                                  {
-                                    max2 = labelProbArray[0][i];
-                                    index2 = i;
-                                  }
-                                }
-
-                                for (int i = 0; i < labelProbArray[0].length; i++) {
-                                  if(max3 < labelProbArray[0][i] && labelProbArray[0][i] != max && labelProbArray[0][i] != max2 )
-                                  {
-                                    max3 = labelProbArray[0][i];
-                                    index3 = i;
-                                  }
-                                }
-
-                                medicaments.pushString(ref_filenames[index]);
-                                medicaments.pushString(ref_filenames[index2]);
-                                medicaments.pushString(ref_filenames[index3]);
-
-                                mDelegate.onCustomModel(medicaments);
-                                mDelegate.onCustomModelTaskCompleted();
-                              }
-                            })
-                            .addOnFailureListener(
-                                    new OnFailureListener() {
-                                      @Override
-                                      public void onFailure(Exception e) {
-                                        mDelegate.onCustomModelTaskCompleted();
-                                      }
-                                    });
-                  } catch (FirebaseMLException | FileNotFoundException e) {
-                    e.printStackTrace();
-                  }
-
-                }
-              });
-
-    } catch (FirebaseMLException e) {
+    } catch (FirebaseMLException | FileNotFoundException e) {
       e.printStackTrace();
     }
     return null;
@@ -250,47 +161,80 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
   private synchronized float[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
 
-    // Convert the YUV byte array into a bitmap
-    // ByteArrayOutputStream out = new ByteArrayOutputStream();
+    //Convert the YUV byte array into a bitmap
 
-    // YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
-    // yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
-    // byte[] imageBytes = out.toByteArray();
+    Bitmap squareBitmap;
 
-    // Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-    System.out.println("nouvelle methode general");
+    YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
+    yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
+    byte[] imageBytes = out.toByteArray();
 
-    RenderScript rs = RenderScript.create(mThemedReactContext);
-    ScriptIntrinsicYuvToRGB yuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(rs, Element.U8_4(rs));
+    Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
 
-    Allocation in = Allocation.createSized(rs, Element.U8(rs), mImgData.length);
+    if (bitmap.getWidth() >= bitmap.getHeight()){
 
-    Bitmap bitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+      squareBitmap = Bitmap.createBitmap(
+         bitmap, 
+         bitmap.getWidth()/2 - bitmap.getHeight()/2,
+         0,
+         bitmap.getHeight(), 
+         bitmap.getHeight()
+         );
+    
+    }else{
+    
+      squareBitmap = Bitmap.createBitmap(
+         bitmap,
+         0, 
+         bitmap.getHeight()/2 - bitmap.getWidth()/2,
+         bitmap.getWidth(),
+         bitmap.getWidth() 
+         );
+    }
 
-    Allocation out = Allocation.createFromBitmap(rs,bitmap);
+    // RenderScript rs = RenderScript.create(mThemedReactContext);
+    // ScriptIntrinsicYuvToRGB yuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(rs, Element.U8_4(rs));
 
-    yuvToRgbIntrinsic.setInput(in);
+    // Allocation in = Allocation.createSized(rs, Element.U8(rs), mImgData.length);
 
-    in.copyFrom(mImgData);
+    // Bitmap bitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
 
-    yuvToRgbIntrinsic.forEach(out);
+    // Allocation out = Allocation.createFromBitmap(rs,bitmap);
 
-    out.copyTo(bitmap);
+    // yuvToRgbIntrinsic.setInput(in);
 
-    Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
+    // in.copyFrom(mImgData);
+
+    // yuvToRgbIntrinsic.forEach(out);
+
+    // out.copyTo(bitmap);
+
+    Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(squareBitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
+
+    // AssetManager assetManager = mThemedReactContext.getAssets();
+    // InputStream istr = null;
+    // try {
+    //     istr = assetManager.open("imagetestv2.jpg");
+    // } catch (IOException e) {
+    //     e.printStackTrace();
+    // }
+    // Bitmap bitmap2 = BitmapFactory.decodeStream(istr);
+    // Bitmap scaledBitmap3 = bitmap2.createScaledBitmap(bitmap2, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
 
     // Create a 4 dimension array with the reduced Bitmap informations
     float[][][][] input = new float[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
 
-    for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
-      for (int y = 0; y < DIM_IMG_SIZE_Y; y++) {
+    for (int y = 0; y < DIM_IMG_SIZE_Y; y++) {
+      for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
         int pixel = scaledBitmap2.getPixel(x, y);
-        input[0][x][y][0] = ( Color.red(pixel) / 255.0f );
-        input[0][x][y][1] = ( Color.green(pixel) / 255.0f );
-        input[0][x][y][2] = ( Color.blue(pixel) / 255.0f );
+        input[0][y][x][0] = ( Color.red(pixel) / 255.0f );
+        input[0][y][x][1] = ( Color.green(pixel) / 255.0f );
+        input[0][y][x][2] = ( Color.blue(pixel) / 255.0f );
       }
     }
+
     return input;
   }
 

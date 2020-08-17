@@ -27,6 +27,7 @@ import org.reactnative.barcodedetector.RNBarcodeDetector;
 import org.reactnative.camera.tasks.*;
 import org.reactnative.camera.utils.RNFileUtils;
 import org.reactnative.facedetector.RNFaceDetector;
+import org.reactnative.mlcustom.MLCustomDetector;
 
 import java.io.File;
 import java.io.IOException;
@@ -65,6 +66,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   private MultiFormatReader mMultiFormatReader;
   private RNFaceDetector mFaceDetector;
   private RNBarcodeDetector mGoogleBarcodeDetector;
+  private MLCustomDetector mCustomDetector;
   private boolean mShouldDetectFaces = false;
   private boolean mShouldGoogleDetectBarcodes = false;
   private boolean mShouldScanBarCodes = false;
@@ -76,6 +78,9 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   private int mFaceDetectionClassifications = RNFaceDetector.NO_CLASSIFICATIONS;
   private int mGoogleVisionBarCodeType = RNBarcodeDetector.ALL_FORMATS;
   private int mGoogleVisionBarCodeMode = RNBarcodeDetector.NORMAL_MODE;
+  private boolean mCustomDetectorMode = false;
+  private String mCustomDetectorName = "";
+  private List<Integer> mCustomDetectorDimensions;
   private boolean mTrackingEnabled = true;
   private int mPaddingX;
   private int mPaddingY;
@@ -212,7 +217,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
         if (willCallCustomTask) {
           customModelTaskLock = true;
           CustomModelAsyncTaskDelegate delegate = (CustomModelAsyncTaskDelegate) cameraView;
-          new CustomModelAsyncTask(delegate, mThemedReactContext, data, width, height, correctRotation, getResources().getDisplayMetrics().density, getFacing(), getWidth(), getHeight(), mPaddingX, mPaddingY).execute();
+          new CustomModelAsyncTask(delegate, mThemedReactContext, mCustomDetector, data, width, height, correctRotation, getResources().getDisplayMetrics().density, getFacing(), getWidth(), getHeight(), mPaddingX, mPaddingY).execute();
         }
         
       }
@@ -571,7 +576,17 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
    * Custom model
    */
 
+  private void setupCustomDetector() {
+    mCustomDetector = new MLCustomDetector(mThemedReactContext);
+    mCustomDetector.setMode(mCustomDetectorMode);
+    mCustomDetector.setName(mCustomDetectorName);
+    mCustomDetector.setDimensions(mCustomDetectorDimensions);
+  }
+
   public void setShouldCustomModel(boolean shouldCustomModel) {
+    if (shouldCustomModel) {
+      setupCustomDetector();
+    }
     this.mShouldCustomModel = shouldCustomModel;
     setScanning(mShouldDetectFaces || mShouldGoogleDetectBarcodes || mShouldScanBarCodes || mShouldRecognizeText || mShouldCustomModel);
   }
@@ -582,6 +597,27 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
     }
 
     RNCameraViewHelper.emitCustomModelEvent(this, serializedData);
+  }
+
+  public void setCustomModelMode(boolean mode) {
+    mCustomDetectorMode = mode;
+    if (mCustomDetector != null) {
+      mCustomDetector.setMode(mode);
+    }
+  }
+
+  public void setCustomModelName(String name) {
+    mCustomDetectorName = name;
+    if (mCustomDetector != null) {
+      mCustomDetector.setName(name);
+    }
+  }
+  
+  public void setCustomModelDimensions(List<Integer> dimensions) {
+    mCustomDetectorDimensions = dimensions;
+    if (mCustomDetector != null) {
+      mCustomDetector.setDimensions(dimensions);
+    }
   }
 
   @Override
