@@ -2,7 +2,6 @@ package org.reactnative.mlcustom;
 
 import android.content.Context;
 
-import java.lang.reflect.Array;
 import java.util.List;
 
 import com.google.firebase.ml.common.FirebaseMLException;
