@@ -211,23 +211,13 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
     // out.copyTo(bitmap);
 
-    Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(squareBitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
-
-    // AssetManager assetManager = mThemedReactContext.getAssets();
-    // InputStream istr = null;
-    // try {
-    //     istr = assetManager.open("imagetestv2.jpg");
-    // } catch (IOException e) {
-    //     e.printStackTrace();
-    // }
-    // Bitmap bitmap2 = BitmapFactory.decodeStream(istr);
-    // Bitmap scaledBitmap3 = bitmap2.createScaledBitmap(bitmap2, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
+    Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(squareBitmap, 256, 256, true);
 
     // Create a 4 dimension array with the reduced Bitmap informations
-    float[][][][] input = new float[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
+    float[][][][] input = new float[1][256][256][3];
 
-    for (int y = 0; y < DIM_IMG_SIZE_Y; y++) {
-      for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
+    for (int y = 0; y < 256; y++) {
+      for (int x = 0; x < 256; x++) {
         int pixel = scaledBitmap2.getPixel(x, y);
         input[0][y][x][0] = ( Color.red(pixel) / 255.0f );
         input[0][y][x][1] = ( Color.green(pixel) / 255.0f );
