@@ -2216,6 +2216,21 @@ BOOL _sessionInterrupted = NO;
     }
 }
 
+- (void)updateCustomModelMode:(id)requestedMode
+{
+    [self.customDetector setMode:requestedMode queue:self.sessionQueue];
+}
+
+- (void)updateCustomModelName:(id)requestedName
+{
+    [self.customDetector setName:requestedName queue:self.sessionQueue];
+}
+
+- (void)updateCustomModelDimensions:(id)requestedDimensions
+{
+    [self.customDetector setDimensions:requestedDimensions queue:self.sessionQueue];
+}
+
 # pragma mark - mlkit
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput
@@ -2273,8 +2288,10 @@ BOOL _sessionInterrupted = NO;
             _finishedDetectingCustom = false;
             self.startCustom = [NSDate date];
             [self.customDetector runCustomModel:image scaleX:scaleX scaleY:scaleY completed:^(NSArray * customs) {
-                NSDictionary *eventCustom = @{@"type" : @"custom", @"customs" : customs};
-                [self onCustomModel:eventCustom];
+                if ([customs[0] floatValue] > 0) {
+                    NSDictionary *eventCustom = @{@"type" : @"custom", @"customs" : customs};
+                    [self onCustomModel:eventCustom];
+                }
                 self.finishedDetectingCustom = true;
             }];
         }

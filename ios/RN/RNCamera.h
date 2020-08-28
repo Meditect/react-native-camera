@@ -27,6 +27,9 @@
 @property(nonatomic, strong) id runtimeErrorHandlingObserver;
 @property(nonatomic, strong) NSArray *barCodeTypes;
 @property(nonatomic, strong) NSArray *googleVisionBarcodeTypes;
+@property(nonatomic, assign) BOOL customModelMode;
+@property(nonatomic, strong) NSString *customModelName;
+@property(nonatomic, strong) NSArray *customModelDimensions;
 
 @property(nonatomic, assign) NSInteger *googleVisionBarcodeMode;
 @property(nonatomic, assign) NSInteger presetCamera;
@@ -82,6 +85,10 @@
 // google Barcode props
 - (void)updateGoogleVisionBarcodeType:(id)requestedTypes;
 - (void)updateGoogleVisionBarcodeMode:(id)requestedMode;
+// custom Model props
+- (void)updateCustomModelName:(id)requestedMode;
+- (void)updateCustomModelMode:(id)requestedMode;
+- (void)updateCustomModelDimensions:(id)requestedMode;
 
 - (void)takePicture:(NSDictionary *)options
             resolve:(RCTPromiseResolveBlock)resolve

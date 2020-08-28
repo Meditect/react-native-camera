@@ -1,5 +1,17 @@
 # React Native Camera [![Backers on Open Collective](https://opencollective.com/react-native-camera/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/react-native-camera/sponsors/badge.svg)](#sponsors) [![npm version](https://badge.fury.io/js/react-native-camera.svg)](http://badge.fury.io/js/react-native-camera) [![npm downloads](https://img.shields.io/npm/dm/react-native-camera.svg)](https://www.npmjs.com/package/react-native-camera)
 
+##ML Custom
+
+pour utiliser des cutoms models tflite il faut rajouter 4 props en plus dans RN Camera:
+
+-onCustomModel: Une fois un medicament detecté il renvoie un array a 2 elements : la probabilité et la chaine de caractère contenant les informations
+
+-customModelMode: Passer en paramètres vrai pour utiliser le modèle distant/ faux sinon 
+
+-customModelName: Passer en paramètres le nom du modèle distant défini sur firebase (ne fonctionne pas sur iOS)
+
+-customModelDimensions: Passer en paramètres les dimensions d'entrée du modèle distant (ne fonctionne pas sur iOS)
+
 ## Docs
 Follow our docs here [https://react-native-community.github.io/react-native-camera/](https://react-native-community.github.io/react-native-camera/)
 

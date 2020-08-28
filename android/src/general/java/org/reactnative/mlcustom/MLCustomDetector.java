@@ -36,14 +36,17 @@ public class MLCustomDetector {
         return mCustomOptions;
     }
 
+    //Definir si le modèle distant est téléchargé ou non
     public void setMode(Boolean mode) {
         mMode = mode;
     }
 
+    //Definir le nom du modèle distant
     public void setName(String name) {
         mName = name;
     }
 
+    //Definir les dimensions du modèle distant
     public void setDimensions(List<Integer> dimensions) {
         
         int[] dimensionsArray = new int[dimensions.size()];
@@ -54,11 +57,15 @@ public class MLCustomDetector {
     }
 
     private void createCustomDetector() throws FirebaseMLException {
+
+        // on vérifie si le modèle distant est téléchargé et a un nom et une dimensions de définit
         if (mMode && mName != "" && mDimensions.length > 0) {
             FirebaseCustomRemoteModel remoteModel = new FirebaseCustomRemoteModel.Builder(mName).build();
             FirebaseModelInterpreterOptions options = new FirebaseModelInterpreterOptions.Builder(remoteModel).build();
             mCustomDetector = FirebaseModelInterpreter.getInstance(options);
+        // Sinon on utilise le modèle local
         } else {
+            System.out.println("CUSTOM LOCAL");
             FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("model_v8.tflite").build();
             FirebaseModelInterpreterOptions options = new FirebaseModelInterpreterOptions.Builder(localModel).build();
             mCustomDetector = FirebaseModelInterpreter.getInstance(options);
@@ -66,11 +73,13 @@ public class MLCustomDetector {
     }
 
     private void createCustomOptions() throws FirebaseMLException {
+        // on vérifie si le modèle distant est téléchargé et a un nom et une dimensions de définit
         if (mMode && mName != "" && mDimensions.length > 0) {
             mCustomOptions = new FirebaseModelInputOutputOptions.Builder()
               .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 256, 256, 3})
               .setOutputFormat(0, FirebaseModelDataType.FLOAT32, mDimensions)
               .build();
+        // Sinon on définit les options pour le modèle local
         } else {
             mCustomOptions = new FirebaseModelInputOutputOptions.Builder()
               .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 256, 256, 3})

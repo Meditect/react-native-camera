@@ -339,6 +339,21 @@ RCT_CUSTOM_VIEW_PROPERTY(customModelEnabled, BOOL, RNCamera)
     [view setupOrDisableCustomDetector];
 }
 
+RCT_CUSTOM_VIEW_PROPERTY(customModelMode, BOOL, RNCamera)
+{
+    [view updateCustomModelMode:json];
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(customModelName, NSString, RNCamera)
+{
+    [view updateCustomModelName:json];
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(customModelDimensions, NSArray, RNCamera)
+{
+    [view updateCustomModelDimensions:json];
+}
+
 RCT_CUSTOM_VIEW_PROPERTY(captureAudio, BOOL, RNCamera)
 {
     [view setCaptureAudio:[RCTConvert BOOL:json]];
