@@ -218,6 +218,25 @@ public class CameraViewManager extends ViewGroupManager<RNCameraView> {
     view.setShouldCustomModel(customModelEnabled);
   }
 
+  @ReactProp(name = "customModelMode")
+  public void setCustomModelMode(RNCameraView view, boolean mode) {
+    view.setCustomModelMode(mode);
+  }
+
+  @ReactProp(name = "customModelName")
+  public void setCustomModelName(RNCameraView view, String customModelName) {
+    view.setCustomModelName(customModelName);
+  }
+
+  @ReactProp(name = "customModelDimensions")
+  public void setCustomModelDimensions(RNCameraView view, ReadableArray dimensions) {
+    List<Integer> result = new ArrayList<>(dimensions.size());
+    for (int i = 0; i < dimensions.size(); i++) {
+      result.add((int)dimensions.getDouble(i));
+    }
+    view.setCustomModelDimensions(result);
+  }
+
   /**---limit scan area addition---**/
   @ReactProp(name = "rectOfInterest")
   public void setRectOfInterest(RNCameraView view, ReadableMap coordinates) {

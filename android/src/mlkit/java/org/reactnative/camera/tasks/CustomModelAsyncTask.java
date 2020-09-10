@@ -1,12 +1,19 @@
+
 package org.reactnative.camera.tasks;
 
+import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.res.AssetManager;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
-import android.util.Log;
 import android.graphics.BitmapFactory;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.renderscript.Allocation;
+import android.renderscript.Element;
+import android.renderscript.RenderScript;
+import android.renderscript.ScriptIntrinsicYuvToRGB;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.WritableArray;
@@ -17,23 +24,26 @@ import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 import com.google.firebase.ml.common.FirebaseMLException;
-import com.google.firebase.ml.custom.FirebaseCustomLocalModel;
-import com.google.firebase.ml.custom.FirebaseModelDataType;
 import com.google.firebase.ml.custom.FirebaseModelInputOutputOptions;
 import com.google.firebase.ml.custom.FirebaseModelInputs;
 import com.google.firebase.ml.custom.FirebaseModelInterpreter;
-import com.google.firebase.ml.custom.FirebaseModelInterpreterOptions;
 import com.google.firebase.ml.custom.FirebaseModelOutputs;
 
 import org.reactnative.camera.utils.ImageDimensions;
+import org.reactnative.mlcustom.MLCustomDetector;
 
 public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void> {
 
   private CustomModelAsyncTaskDelegate mDelegate;
   private ThemedReactContext mThemedReactContext;
+  private MLCustomDetector mCustomDetector;
   private byte[] mImageData;
   private int mWidth;
   private int mHeight;
@@ -47,12 +57,6 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
   //Custom Model variables
 
-  // Dimensions required by the custom model
-  private static final int DIM_BATCH_SIZE = 1;
-  private static final int DIM_PIXEL_SIZE = 3;
-  private static final int DIM_IMG_SIZE_X = 400; //368;
-  private static final int DIM_IMG_SIZE_Y = 400;//368;
-
   private static ReactApplicationContext reactContext;
 
   private FirebaseModelInterpreter mInterpreter;
@@ -62,6 +66,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
   public CustomModelAsyncTask(
           CustomModelAsyncTaskDelegate delegate,
           ThemedReactContext themedReactContext,
+          MLCustomDetector customDetector,
           byte[] imageData,
           int width,
           int height,
@@ -74,6 +79,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
           int viewPaddingTop
   ) {
     mThemedReactContext = themedReactContext;
+    mCustomDetector = customDetector;
     mDelegate = delegate;
     mImageData = imageData;
     mWidth = width;
@@ -89,60 +95,64 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
   @Override
   protected Void doInBackground(Void... ignored) {
 
-    System.out.println("rentré dans background");
     if (isCancelled() || mDelegate == null) {
       return null;
     }
 
     try {
+        // On créer l'interpreter local ou distant
+        mInterpreter = mCustomDetector.getDetector();
 
-      // Creation of the firebase interpreter with the tflite model (assets folder)
+        // Récuperer les options
+        mDataOptions = mCustomDetector.getOptions();
 
-      mDataOptions = new FirebaseModelInputOutputOptions.Builder()
-              .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, 3})
-              .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 7})
-              .build();
+        // Convertir l'image reçu par la caméra en tableau à 4 dimensions puis en input
+        final float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
+        FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
 
-      FirebaseCustomLocalModel localModel = new FirebaseCustomLocalModel.Builder().setAssetFilePath("mnist_model_quant.tflite").build();
+        mInterpreter
+                .run(inputs, mDataOptions)
+                .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
+                    @Override
+                    public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
+                    
+                    // En sortie on a un array de dimensions [1][3][x] contenant les 3 médicaments les plus probables
+                    float[][][] labelProbArray = firebaseModelOutputs.<float[][][]>getOutput(0);
 
-      FirebaseModelInterpreterOptions modelOptions = new FirebaseModelInterpreterOptions.Builder(localModel).build();
+                    WritableArray result = Arguments.createArray();
+                    String nomMedicament = "";
+                    
+                    //La première valeure de chaque image contient la probabilité > 0 si le médicament est reconnu 0 sinon
+                    result.pushDouble(labelProbArray[0][0][0]);
 
-      mInterpreter = FirebaseModelInterpreter.getInstance(modelOptions);
+                    // Les valeurs suivantes représentent la chaine de caractère du médicament reconnu
+                    // Cette chaine est encodé en Unicode il faut ensuite la décoder
+                    for (int i = 1; i < labelProbArray[0][0].length; i++) {
+                      if (labelProbArray[0][0][i] != 0) {       
+                        nomMedicament += Character.toString((char) labelProbArray[0][0][i]);
+                      }
+                    } 
 
-      float[][][][] imgData = convertByteArrayToByteBuffer(mImageData, mWidth, mHeight);
+                    result.pushString(nomMedicament);
+                    
+                    // Si la probabilité est superieur à 0 le médicament est reconnu donc on le renvoie à react-native
+                    if (labelProbArray[0][0][0] > 0) {
+                      mDelegate.onCustomModel(result);
+                    }
 
-      FirebaseModelInputs inputs = new FirebaseModelInputs.Builder().add(imgData).build();
-
-      mInterpreter
-              .run(inputs, mDataOptions)
-              .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
-                @Override
-                public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
-
-                  float[][] labelProbArray = firebaseModelOutputs.<float[][]>getOutput(0);
-
-                  WritableArray result = Arguments.createArray();
-
-                  //Get the probabilities for each label
-                  for (int i = 0; i < labelProbArray[0].length; i++) {
-                    result.pushString(String.valueOf(labelProbArray[0][i]));
-                  }
-
-                  mDelegate.onCustomModel(result);
-                  mDelegate.onCustomModelTaskCompleted();
-                }
-              })
-              .addOnFailureListener(
-                      new OnFailureListener() {
-                        @Override
-                        public void onFailure(Exception e) {
-                          Log.e(TAG, "Custom model task failed" + e);
-                          mDelegate.onCustomModelTaskCompleted();
-                        }
-                      });
+                    mDelegate.onCustomModelTaskCompleted();
+                    }
+                })
+                .addOnFailureListener(
+                        new OnFailureListener() {
+                            @Override
+                            public void onFailure(Exception e) {
+                            e.printStackTrace();
+                            mDelegate.onCustomModelTaskCompleted();
+                            }
+                        });
 
     } catch (FirebaseMLException | FileNotFoundException e) {
-      //Toast.makeText(getReactApplicationContext(), "model load failed", 4).show();
       e.printStackTrace();
     }
     return null;
@@ -150,27 +160,87 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
   private synchronized float[][][][] convertByteArrayToByteBuffer(byte[] mImgData, int mWidth, int mHeight) throws FileNotFoundException {
 
-    // Convert the YUV byte array into a bitmap
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    //Premiere méthode pour convertir mImgData en Bitmap
 
-    YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
-    yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
-    byte[] imageBytes = out.toByteArray();
+    // ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-    Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
-    Bitmap scaledBitmap2 = Bitmap.createScaledBitmap(bitmap, DIM_IMG_SIZE_X, DIM_IMG_SIZE_Y, true);
+    // YuvImage yuvImage = new YuvImage(mImgData, ImageFormat.NV21, mWidth, mHeight, null);
+    // yuvImage.compressToJpeg(new Rect(0, 0, mWidth, mHeight), 100, out);
+    // byte[] imageBytes = out.toByteArray();
 
-    // Create a 4 dimension array with the reduced Bitmap informations
-    float[][][][] input = new float[1][DIM_IMG_SIZE_X][DIM_IMG_SIZE_Y][3];
+    // Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
 
-    for (int x = 0; x < DIM_IMG_SIZE_X; x++) {
-      for (int y = 0; y < DIM_IMG_SIZE_Y; y++) {
-        int pixel = scaledBitmap2.getPixel(x, y);
-        input[0][x][y][0] = ( Color.red(pixel) / 255.0f );
-        input[0][x][y][1] = ( Color.green(pixel) / 255.0f );
-        input[0][x][y][2] = ( Color.blue(pixel) / 255.0f );
+    //Deuxieme méthode pour convertir mImgData en Bitmap
+
+    RenderScript rs = RenderScript.create(mThemedReactContext);
+    ScriptIntrinsicYuvToRGB yuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(rs, Element.U8_4(rs));
+
+    Allocation in = Allocation.createSized(rs, Element.U8(rs), mImgData.length);
+
+    Bitmap bitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+
+    Allocation out = Allocation.createFromBitmap(rs,bitmap);
+
+    yuvToRgbIntrinsic.setInput(in);
+
+    in.copyFrom(mImgData);
+
+    yuvToRgbIntrinsic.forEach(out);
+
+    out.copyTo(bitmap);
+
+    //Une fois la bitmap obtenu on la rogne pour obtenir un carré car sinon l'image serait trop déformée
+
+    Bitmap squareBitmap;
+
+    if (bitmap.getWidth() >= bitmap.getHeight()) {
+
+      squareBitmap = Bitmap.createBitmap(
+         bitmap, 
+         bitmap.getWidth()/2 - bitmap.getHeight()/2,
+         0,
+         bitmap.getHeight(), 
+         bitmap.getHeight()
+         );
+    
+    }else{
+    
+      squareBitmap = Bitmap.createBitmap(
+         bitmap,
+         0, 
+         bitmap.getHeight()/2 - bitmap.getWidth()/2,
+         bitmap.getWidth(),
+         bitmap.getWidth() 
+         );
+    }
+
+    // Fonction pour obtenir une Bitmap depuis une image stockée dans Assets
+
+    // AssetManager assetManager = mThemedReactContext.getAssets();
+    // InputStream istr = null;
+    // try {
+    //     istr = assetManager.open("imagetest.jpeg");
+    // } catch (IOException e) {
+    //     e.printStackTrace();
+    // }
+    // Bitmap bitmapTest = BitmapFactory.decodeStream(istr);
+
+    // On créer une bitmap à l'echelle du modèle [256][256]
+
+    Bitmap scaledBitmap = Bitmap.createScaledBitmap(squareBitmap, 256, 256, true);
+
+    // On créer un array à 4 dimensions pour accueillir la bitmap
+    float[][][][] input = new float[1][256][256][3];
+
+    for (int y = 0; y < 256; y++) {
+      for (int x = 0; x < 256; x++) {
+        int pixel = scaledBitmap.getPixel(x, y);
+        input[0][y][x][0] = ( Color.red(pixel) / 255.0f );
+        input[0][y][x][1] = ( Color.green(pixel) / 255.0f );
+        input[0][y][x][2] = ( Color.blue(pixel) / 255.0f );
       }
     }
+
     return input;
   }
 

@@ -25,6 +25,7 @@ RCT_EXPORT_VIEW_PROPERTY(onPictureSaved, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onRecordingStart, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onRecordingEnd, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onTextRecognized, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onCustomModel, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onSubjectAreaChanged, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(videoStabilizationMode, NSInteger);
 RCT_EXPORT_VIEW_PROPERTY(onTouch, RCTDirectEventBlock);
@@ -93,7 +94,7 @@ RCT_EXPORT_VIEW_PROPERTY(onTouch, RCTDirectEventBlock);
 
 - (NSArray<NSString *> *)supportedEvents
 {
-    return @[@"onCameraReady", @"onAudioInterrupted", @"onAudioConnected", @"onMountError", @"onBarCodeRead", @"onFacesDetected", @"onPictureTaken", @"onPictureSaved", @"onRecordingStart", @"onRecordingEnd", @"onTextRecognized", @"onGoogleVisionBarcodesDetected", @"onSubjectAreaChanged",@"onTouch"];
+    return @[@"onCameraReady", @"onAudioInterrupted", @"onAudioConnected", @"onMountError", @"onBarCodeRead", @"onFacesDetected", @"onPictureTaken", @"onPictureSaved", @"onRecordingStart", @"onRecordingEnd", @"onTextRecognized", @"onCustomModel", @"onGoogleVisionBarcodesDetected", @"onSubjectAreaChanged",@"onTouch"];
 }
 
 + (NSDictionary *)validCodecTypes
@@ -300,7 +301,6 @@ RCT_CUSTOM_VIEW_PROPERTY(faceDetectionClassifications, NSString, RNCamera)
 
 RCT_CUSTOM_VIEW_PROPERTY(barCodeScannerEnabled, BOOL, RNCamera)
 {
-
     view.isReadingBarCodes = [RCTConvert BOOL:json];
     [view setupOrDisableBarcodeScanner];
 }
@@ -331,6 +331,27 @@ RCT_CUSTOM_VIEW_PROPERTY(textRecognizerEnabled, BOOL, RNCamera)
 
     view.canReadText = [RCTConvert BOOL:json];
     [view setupOrDisableTextDetector];
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(customModelEnabled, BOOL, RNCamera)
+{
+    view.canDetectCustom = [RCTConvert BOOL:json];
+    [view setupOrDisableCustomDetector];
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(customModelMode, BOOL, RNCamera)
+{
+    [view updateCustomModelMode:json];
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(customModelName, NSString, RNCamera)
+{
+    [view updateCustomModelName:json];
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(customModelDimensions, NSArray, RNCamera)
+{
+    [view updateCustomModelDimensions:json];
 }
 
 RCT_CUSTOM_VIEW_PROPERTY(captureAudio, BOOL, RNCamera)

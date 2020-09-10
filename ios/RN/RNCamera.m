@@ -21,6 +21,7 @@
 @property (nonatomic, strong) id textDetector;
 @property (nonatomic, strong) id faceDetector;
 @property (nonatomic, strong) id barcodeDetector;
+@property (nonatomic, strong) id customDetector;
 
 @property (nonatomic, copy) RCTDirectEventBlock onCameraReady;
 @property (nonatomic, copy) RCTDirectEventBlock onAudioInterrupted;
@@ -30,6 +31,7 @@
 @property (nonatomic, copy) RCTDirectEventBlock onTouch;
 @property (nonatomic, copy) RCTDirectEventBlock onTextRecognized;
 @property (nonatomic, copy) RCTDirectEventBlock onFacesDetected;
+@property (nonatomic, copy) RCTDirectEventBlock onCustomModel;
 @property (nonatomic, copy) RCTDirectEventBlock onGoogleVisionBarcodesDetected;
 @property (nonatomic, copy) RCTDirectEventBlock onPictureTaken;
 @property (nonatomic, copy) RCTDirectEventBlock onPictureSaved;
@@ -38,9 +40,11 @@
 @property (nonatomic, assign) BOOL finishedReadingText;
 @property (nonatomic, assign) BOOL finishedDetectingFace;
 @property (nonatomic, assign) BOOL finishedDetectingBarcodes;
+@property (nonatomic, assign) BOOL finishedDetectingCustom;
 @property (nonatomic, copy) NSDate *startText;
 @property (nonatomic, copy) NSDate *startFace;
 @property (nonatomic, copy) NSDate *startBarcode;
+@property (nonatomic, copy) NSDate *startCustom;
 
 @property (nonatomic, copy) RCTDirectEventBlock onSubjectAreaChanged;
 @property (nonatomic, assign) BOOL isFocusedOnPoint;
@@ -67,12 +71,15 @@ BOOL _sessionInterrupted = NO;
         self.textDetector = [self createTextDetector];
         self.faceDetector = [self createFaceDetectorMlKit];
         self.barcodeDetector = [self createBarcodeDetectorMlKit];
+        self.customDetector = [self createCustomDetector];
         self.finishedReadingText = true;
         self.finishedDetectingFace = true;
         self.finishedDetectingBarcodes = true;
+        self.finishedDetectingCustom = true;
         self.startText = [NSDate date];
         self.startFace = [NSDate date];
         self.startBarcode = [NSDate date];
+        self.startCustom = [NSDate date];
 #if !(TARGET_IPHONE_SIMULATOR)
         self.previewLayer =
         [AVCaptureVideoPreviewLayer layerWithSession:self.session];
@@ -1319,6 +1326,9 @@ BOOL _sessionInterrupted = NO;
         if ([self.barcodeDetector isRealDetector]) {
             [self stopBarcodeDetection];
         }
+        if ([self.customDetector isRealDetector]) {
+            [self stopCustomRecognition];
+        }
         [self.previewLayer removeFromSuperlayer];
         [self.session commitConfiguration];
         [self.session stopRunning];
@@ -1926,6 +1936,10 @@ BOOL _sessionInterrupted = NO;
         [self setupOrDisableBarcodeDetector];
     }
 
+    if ([self.customDetector isRealDetector]) {
+        [self setupOrDisableCustomDetector];
+    }
+
     // reset preset to current default
     AVCaptureSessionPreset preset = [self getDefaultPreset];
     if (self.session.sessionPreset != preset) {
@@ -2156,13 +2170,74 @@ BOOL _sessionInterrupted = NO;
     self.videoDataOutput = nil;
 }
 
+# pragma mark - CustomDetector
+
+-(id)createCustomDetector
+{
+    Class customDetectorManagerClass = NSClassFromString(@"CustomModelManager");
+    return [[customDetectorManagerClass alloc] init];
+}
+
+- (void)setupOrDisableCustomDetector
+{
+    if (self.canDetectCustom && [self.customDetector isRealDetector]){
+        if (!self.videoDataOutput) {
+            self.videoDataOutput = [[AVCaptureVideoDataOutput alloc] init];
+            if (![self.session canAddOutput:_videoDataOutput]) {
+                NSLog(@"Failed to setup video data output");
+                [self stopCustomRecognition];
+                return;
+            }
+            NSDictionary *rgbOutputSettings = [NSDictionary
+                dictionaryWithObject:[NSNumber numberWithInt:kCMPixelFormat_32BGRA]
+                                forKey:(id)kCVPixelBufferPixelFormatTypeKey];
+            [self.videoDataOutput setVideoSettings:rgbOutputSettings];
+            [self.videoDataOutput setAlwaysDiscardsLateVideoFrames:YES];
+            [self.videoDataOutput setSampleBufferDelegate:self queue:self.sessionQueue];
+            [self.session addOutput:_videoDataOutput];
+        }
+    } else {
+        [self stopCustomRecognition];
+    }
+}
+
+- (void)stopCustomRecognition
+{
+    if (self.videoDataOutput && !self.canDetectCustom) {
+        [self.session removeOutput:self.videoDataOutput];
+    }
+    self.videoDataOutput = nil;
+}
+
+- (void)onCustomModel:(NSDictionary *)event
+{
+    if (_onCustomModel && _session) {
+        _onCustomModel(event);
+    }
+}
+
+- (void)updateCustomModelMode:(id)requestedMode
+{
+    [self.customDetector setMode:requestedMode queue:self.sessionQueue];
+}
+
+- (void)updateCustomModelName:(id)requestedName
+{
+    [self.customDetector setName:requestedName queue:self.sessionQueue];
+}
+
+- (void)updateCustomModelDimensions:(id)requestedDimensions
+{
+    [self.customDetector setDimensions:requestedDimensions queue:self.sessionQueue];
+}
+
 # pragma mark - mlkit
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput
     didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
            fromConnection:(AVCaptureConnection *)connection
 {
-    if (![self.textDetector isRealDetector] && ![self.faceDetector isRealDetector] && ![self.barcodeDetector isRealDetector]) {
+    if (![self.textDetector isRealDetector] && ![self.faceDetector isRealDetector] && ![self.barcodeDetector isRealDetector] && ![self.customDetector isRealDetector]) {
         NSLog(@"failing real check");
         return;
     }
@@ -2175,10 +2250,12 @@ BOOL _sessionInterrupted = NO;
     NSTimeInterval timePassedSinceSubmittingForText = [methodFinish timeIntervalSinceDate:self.startText];
     NSTimeInterval timePassedSinceSubmittingForFace = [methodFinish timeIntervalSinceDate:self.startFace];
     NSTimeInterval timePassedSinceSubmittingForBarcode = [methodFinish timeIntervalSinceDate:self.startBarcode];
+    NSTimeInterval timePassedSinceSubmittingForCustom = [methodFinish timeIntervalSinceDate:self.startCustom];
     BOOL canSubmitForTextDetection = timePassedSinceSubmittingForText > 0.5 && _finishedReadingText && self.canReadText && [self.textDetector isRealDetector];
     BOOL canSubmitForFaceDetection = timePassedSinceSubmittingForFace > 0.5 && _finishedDetectingFace && self.canDetectFaces && [self.faceDetector isRealDetector];
     BOOL canSubmitForBarcodeDetection = timePassedSinceSubmittingForBarcode > 0.5 && _finishedDetectingBarcodes && self.canDetectBarcodes && [self.barcodeDetector isRealDetector];
-    if (canSubmitForFaceDetection || canSubmitForTextDetection || canSubmitForBarcodeDetection) {
+    BOOL canSubmitForCustomDetection = timePassedSinceSubmittingForCustom > 0.5 && _finishedDetectingCustom && self.canDetectCustom && [self.customDetector isRealDetector];
+    if (canSubmitForFaceDetection || canSubmitForTextDetection || canSubmitForBarcodeDetection || canSubmitForCustomDetection) {
         CGSize previewSize = CGSizeMake(_previewLayer.frame.size.width, _previewLayer.frame.size.height);
         NSInteger position = self.videoCaptureDeviceInput.device.position;
         UIImage *image = [RNCameraUtils convertBufferToUIImage:sampleBuffer previewSize:previewSize position:position];
@@ -2204,6 +2281,18 @@ BOOL _sessionInterrupted = NO;
                 NSDictionary *eventFace = @{@"type" : @"face", @"faces" : faces};
                 [self onFacesDetected:eventFace];
                 self.finishedDetectingFace = true;
+            }];
+        }
+        // find custom features
+        if (canSubmitForCustomDetection) {
+            _finishedDetectingCustom = false;
+            self.startCustom = [NSDate date];
+            [self.customDetector runCustomModel:image scaleX:scaleX scaleY:scaleY completed:^(NSArray * customs) {
+                if ([customs[0] floatValue] > 0) {
+                    NSDictionary *eventCustom = @{@"type" : @"custom", @"customs" : customs};
+                    [self onCustomModel:eventCustom];
+                }
+                self.finishedDetectingCustom = true;
             }];
         }
         // find barcodes

@@ -1,7 +1,7 @@
 // @flow
 
 import React from 'react';
-import PropTypes from 'prop-types';
+import PropTypes, { number, string } from 'prop-types';
 import {
   findNodeHandle,
   Platform,
@@ -271,6 +271,8 @@ type PropsType = typeof View.props & {
   onGoogleVisionBarcodesDetected?: ({ barcodes: Array<TrackedBarcodeFeature> }) => void,
   onSubjectAreaChanged?: ({ nativeEvent: { prevPoint: {| x: number, y: number |} } }) => void,
   faceDetectionMode?: number,
+  customModelMode?: boolean,
+  customModelName?: string,
   trackingEnabled?: boolean,
   flashMode?: number | string,
   exposure?: number,
@@ -427,6 +429,8 @@ export default class Camera extends React.Component<PropsType, StateType> {
     barCodeTypes: PropTypes.arrayOf(PropTypes.string),
     googleVisionBarcodeType: PropTypes.number,
     googleVisionBarcodeMode: PropTypes.number,
+    customModelMode: PropTypes.bool,
+    customModelName: PropTypes.string,
     type: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     cameraId: PropTypes.string,
     flashMode: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
@@ -473,6 +477,8 @@ export default class Camera extends React.Component<PropsType, StateType> {
       .None,
     googleVisionBarcodeMode: ((CameraManager.GoogleVisionBarcodeDetection || {}).BarcodeMode || {})
       .NORMAL,
+    customModelMode: false,
+    customModelName: '',
     faceDetectionLandmarks: ((CameraManager.FaceDetection || {}).Landmarks || {}).none,
     faceDetectionClassifications: ((CameraManager.FaceDetection || {}).Classifications || {}).none,
     permissionDialogTitle: '',
