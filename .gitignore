@@ -54,3 +54,5 @@ examples/mlkit/ios/mlkit/GoogleService-Info.plist
 
 #tflite files
 android/src/main/assets/
+!debug.keystore
+/ios/Pods/

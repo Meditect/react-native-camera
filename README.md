@@ -6,14 +6,18 @@ pour utiliser des cutoms models tflite il faut rajouter 4 props en plus dans RN 
 
 -onCustomModel: Une fois un medicament detecté il renvoie un array a 2 elements : la probabilité et la chaine de caractère contenant les informations
 
--customModelMode: Passer en paramètres vrai pour utiliser le modèle distant/ faux sinon 
+-customModelMode: Passer en paramètres vrai pour utiliser le modèle distant/ faux sinon
 
 -customModelName: Passer en paramètres le nom du modèle distant défini sur firebase (ne fonctionne pas sur iOS)
 
 -customModelDimensions: Passer en paramètres les dimensions d'entrée du modèle distant (ne fonctionne pas sur iOS)
+[Looking for Maintainers](https://github.com/react-native-community/react-native-camera/issues/3000)
+
+We are looking for maintainers for this package, or to deprecated this in favor of expo-camera, it nobody want to maintain this
 
 ## Docs
-Follow our docs here [https://react-native-community.github.io/react-native-camera/](https://react-native-community.github.io/react-native-camera/)
+
+Follow our docs here [https://react-native-camera.github.io/react-native-camera/](https://react-native-camera.github.io/react-native-camera/)
 
 ## Sponsors
 
@@ -119,7 +123,7 @@ We recommend using the releases from npm, however if you need some features that
 
 To use the camera,
 
-1) On Android you must ask for camera permission:
+1. On Android you must ask for camera permission:
 
 ```java
   <uses-permission android:name="android.permission.CAMERA" />
@@ -135,15 +139,16 @@ To enable `video recording` feature you have to add the following code to the `A
 
 ![5j2jduk](https://cloud.githubusercontent.com/assets/2302315/22190752/6bc6ccd0-e0da-11e6-8e2f-6f22a3567a57.gif)
 
-2) On iOS, you must update Info.plist with a usage description for camera
+2. On iOS, you must update Info.plist with a usage description for camera
 
 ```xml
 ...
 <key>NSCameraUsageDescription</key>
 <string>Your own description of the purpose</string>
 ...
-	
+
 ```
+
 For more information on installation, please refer to [installation requirements](./docs/installation.md#requirements).
 
 For general introduction, please take a look into this [RNCamera](./docs/RNCamera.md).

@@ -80,6 +80,7 @@ BOOL _sessionInterrupted = NO;
         self.startFace = [NSDate date];
         self.startBarcode = [NSDate date];
         self.startCustom = [NSDate date];
+
 #if !(TARGET_IPHONE_SIMULATOR)
         self.previewLayer =
         [AVCaptureVideoPreviewLayer layerWithSession:self.session];
@@ -87,7 +88,7 @@ BOOL _sessionInterrupted = NO;
         self.previewLayer.needsDisplayOnBoundsChange = YES;
 #endif
         self.rectOfInterest = CGRectMake(0, 0, 1.0, 1.0);
-       
+
         UITapGestureRecognizer * tapHandler=[self createTapGestureRecognizer];
         [self addGestureRecognizer:tapHandler];
         UITapGestureRecognizer * doubleTabHandler=[self createDoubleTapGestureRecognizer];
@@ -99,7 +100,7 @@ BOOL _sessionInterrupted = NO;
         self.cameraId = nil;
         self.isFocusedOnPoint = NO;
         self.isExposedOnPoint = NO;
-        self.invertImageData = false;
+        self.invertImageData = true;
         _recordRequested = NO;
         _sessionInterrupted = NO;
 
@@ -118,14 +119,14 @@ BOOL _sessionInterrupted = NO;
     UITapGestureRecognizer *doubleTapGestureRecognizer =  [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap:)];
     doubleTapGestureRecognizer.numberOfTapsRequired = 2;
     return doubleTapGestureRecognizer;
-          
+
 }
 -(UITapGestureRecognizer*)createTapGestureRecognizer
 {
     UITapGestureRecognizer *tapGestureRecognizer =  [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
     tapGestureRecognizer.numberOfTapsRequired = 1;
     return tapGestureRecognizer;
-          
+
 }
 -(void)handleDoubleTap:(UITapGestureRecognizer*)doubleTapRecognizer {
     [self handleTouch:doubleTapRecognizer isDoubleTap:true];
@@ -400,7 +401,7 @@ BOOL _sessionInterrupted = NO;
             RCTLogWarn(@"%s: device doesn't support flash mode", __func__);
             return;
         }
-        
+
         [self lockDevice:device andApplySettings:^{
             if ([device isTorchActive]) {
                 [device setTorchMode:AVCaptureTorchModeOff];
@@ -596,7 +597,7 @@ BOOL _sessionInterrupted = NO;
     [self lockDevice:device andApplySettings:^{
         float maxZoom = [self getMaxZoomFactor:device];
         device.videoZoomFactor = (maxZoom - 1) * self.zoom + 1;
-    }];   
+    }];
 }
 
 - (void)updateWhiteBalance {
@@ -621,7 +622,7 @@ BOOL _sessionInterrupted = NO;
                 .tint = 0,
             };
             AVCaptureWhiteBalanceGains rgbGains = [device deviceWhiteBalanceGainsForTemperatureAndTintValues:temperatureAndTint];
-            
+
             @try{
                 [device setWhiteBalanceModeLockedWithDeviceWhiteBalanceGains:rgbGains completionHandler:nil];
             }
@@ -647,11 +648,11 @@ BOOL _sessionInterrupted = NO;
             CGFloat redGain = rgbGains.redGain + self.customWhiteBalanceSettings.redGainOffset;
             CGFloat greenGain = rgbGains.greenGain + self.customWhiteBalanceSettings.greenGainOffset;
             CGFloat blueGain = rgbGains.blueGain + self.customWhiteBalanceSettings.blueGainOffset;
-            
+
             rgbGains.redGain = MAX(1.0f, MIN(device.maxWhiteBalanceGain, redGain));
             rgbGains.greenGain = MAX(1.0f, MIN(device.maxWhiteBalanceGain, greenGain));
             rgbGains.blueGain = MAX(1.0f, MIN(device.maxWhiteBalanceGain, blueGain));
-            
+
             @try{
                 [device setWhiteBalanceModeLockedWithDeviceWhiteBalanceGains:rgbGains completionHandler:nil];
             } @catch(NSException *exception){
@@ -701,7 +702,13 @@ BOOL _sessionInterrupted = NO;
             }
 
             // Only set the ISO for now, duration will be default as a change might affect frame rate.
-            [device setExposureModeCustomWithDuration:AVCaptureExposureDurationCurrent ISO:appliedExposure completionHandler:nil];
+            @try{
+                [device setExposureModeCustomWithDuration:AVCaptureExposureDurationCurrent ISO:appliedExposure completionHandler:nil];
+            }
+            @catch(NSException *exception){
+                RCTLogError(@"Failed to update exposure: %@", exception);
+            }
+
         } else {
             RCTLog(@"Device does not support AVCaptureExposureModeCustom");
         }
@@ -1522,6 +1529,13 @@ BOOL _sessionInterrupted = NO;
         self.session.sessionPreset = [self getDefaultPreset];
 
 
+        // reset iso cached values, these might be different
+        // from camera to camera. Otherwise, the camera may crash
+        // when changing cameras and exposure.
+        self.exposureIsoMin = 0;
+        self.exposureIsoMax = 0;
+
+
         if ([self.session canAddInput:captureDeviceInput]) {
             [self.session addInput:captureDeviceInput];
 
@@ -2297,9 +2311,6 @@ BOOL _sessionInterrupted = NO;
         }
         // find barcodes
         if (canSubmitForBarcodeDetection) {
-            _finishedDetectingBarcodes = false;
-            self.startBarcode = [NSDate date];
-
             // Check for the barcode detection mode (Normal, Alternate, Inverted)
             switch ([self.barcodeDetector fetchDetectionMode]) {
                 case RNCameraGoogleVisionBarcodeModeNormal:
@@ -2319,11 +2330,10 @@ BOOL _sessionInterrupted = NO;
             if (self.invertImageData) {
                 image = [RNImageUtils invertColors:image];
             }
-            
+
             [self.barcodeDetector findBarcodesInFrame:image scaleX:scaleX scaleY:scaleY completed:^(NSArray * barcodes) {
                 NSDictionary *eventBarcode = @{@"type" : @"barcode", @"barcodes" : barcodes};
                 [self onBarcodesDetected:eventBarcode];
-                self.finishedDetectingBarcodes = true;
             }];
         }
     }
