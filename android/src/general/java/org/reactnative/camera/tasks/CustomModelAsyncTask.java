@@ -115,30 +115,42 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                 .addOnSuccessListener(new OnSuccessListener<FirebaseModelOutputs>() {
                     @Override
                     public void onSuccess(FirebaseModelOutputs firebaseModelOutputs) {
-                    
+
                     // En sortie on a un array de dimensions [1][3][x] contenant les 3 médicaments les plus probables
                     float[][][] labelProbArray = firebaseModelOutputs.<float[][][]>getOutput(0);
+                    // if boxOrNot[0][0] > 0 then it is a box
+                    float[][] boxOrNot = firebaseModelOutputs.<float[][]>getOutput(1);
 
                     WritableArray result = Arguments.createArray();
                     String nomMedicament = "";
-                    
+
                     //La première valeure de chaque image contient la probabilité > 0 si le médicament est reconnu 0 sinon
                     result.pushDouble(labelProbArray[0][0][0]);
+                    boolean medicamentProbaNotnull = false;
 
+                    for (int p = 0; p < 2; p++) {
                     // Les valeurs suivantes représentent la chaine de caractère du médicament reconnu
                     // Cette chaine est encodé en Unicode il faut ensuite la décoder
-                    for (int i = 1; i < labelProbArray[0][0].length; i++) {
-                      if (labelProbArray[0][0][i] != 0) {       
-                        nomMedicament += Character.toString((char) labelProbArray[0][0][i]);
+                      if (labelProbArray[0][p][0] > 0) {
+                        medicamentProbaNotnull = true;
+                        for (int i = 1; i < labelProbArray[0][p].length; i++) {
+                          if (labelProbArray[0][p][i] != 0) {
+                            nomMedicament += Character.toString((char) labelProbArray[0][0][i]);
+                          }
+                        }
+                        result.pushString(nomMedicament);
+                        break;
                       }
-                    } 
+                    }
 
-                    result.pushString(nomMedicament);
-                    
                     // Si la probabilité est superieur à 0 le médicament est reconnu donc on le renvoie à react-native
-                    if (labelProbArray[0][0][0] > 0) {
+                    if ((boxOrNot[0][0] > 0 && medicamentProbaNotnull)) {
                       mDelegate.onCustomModel(result);
                     }
+
+                    // if (debugML) {
+                    //   mDelegate.onCustoModelPrediction(all_results);
+                    // }
 
                     mDelegate.onCustomModelTaskCompleted();
                     }
@@ -196,21 +208,21 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
     if (bitmap.getWidth() >= bitmap.getHeight()) {
 
       squareBitmap = Bitmap.createBitmap(
-         bitmap, 
+         bitmap,
          bitmap.getWidth()/2 - bitmap.getHeight()/2,
          0,
-         bitmap.getHeight(), 
+         bitmap.getHeight(),
          bitmap.getHeight()
          );
-    
+
     }else{
-    
+
       squareBitmap = Bitmap.createBitmap(
          bitmap,
-         0, 
+         0,
          bitmap.getHeight()/2 - bitmap.getWidth()/2,
          bitmap.getWidth(),
-         bitmap.getWidth() 
+         bitmap.getWidth()
          );
     }
 
