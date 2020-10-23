@@ -48,7 +48,7 @@ public class MLCustomDetector {
 
     //Definir les dimensions du modèle distant
     public void setDimensions(List<Integer> dimensions) {
-        
+
         int[] dimensionsArray = new int[dimensions.size()];
         for(int i = 0;i < dimensionsArray.length;i++) {
             dimensionsArray[i] = dimensions.get(i);
@@ -78,12 +78,14 @@ public class MLCustomDetector {
             mCustomOptions = new FirebaseModelInputOutputOptions.Builder()
               .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 256, 256, 3})
               .setOutputFormat(0, FirebaseModelDataType.FLOAT32, mDimensions)
+              .setOutputFormat(1, FirebaseModelDataType.FLOAT32, new int[]{1, 1})
               .build();
         // Sinon on définit les options pour le modèle local
         } else {
             mCustomOptions = new FirebaseModelInputOutputOptions.Builder()
               .setInputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 256, 256, 3})
               .setOutputFormat(0, FirebaseModelDataType.FLOAT32, new int[]{1, 3, 73})
+              .setOutputFormat(1, FirebaseModelDataType.FLOAT32, new int[]{1, 1})
               .build();
         }
     }

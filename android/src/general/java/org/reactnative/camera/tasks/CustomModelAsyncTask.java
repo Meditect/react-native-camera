@@ -123,16 +123,15 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
 
                     WritableArray result = Arguments.createArray();
                     String nomMedicament = "";
-
-                    //La première valeure de chaque image contient la probabilité > 0 si le médicament est reconnu 0 sinon
-                    result.pushDouble(labelProbArray[0][0][0]);
                     boolean medicamentProbaNotnull = false;
 
                     for (int p = 0; p < 2; p++) {
-                    // Les valeurs suivantes représentent la chaine de caractère du médicament reconnu
-                    // Cette chaine est encodé en Unicode il faut ensuite la décoder
+                      //La première valeure de chaque image contient la probabilité > 0 si le médicament est reconnu 0 sinon
                       if (labelProbArray[0][p][0] > 0) {
+                        result.pushDouble(labelProbArray[0][p][0]);
                         medicamentProbaNotnull = true;
+                        // Les valeurs suivantes représentent la chaine de caractère du médicament reconnu
+                        // Cette chaine est encodé en Unicode il faut ensuite la décoder
                         for (int i = 1; i < labelProbArray[0][p].length; i++) {
                           if (labelProbArray[0][p][i] != 0) {
                             nomMedicament += Character.toString((char) labelProbArray[0][0][i]);
@@ -153,7 +152,7 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
                     // }
 
                     mDelegate.onCustomModelTaskCompleted();
-                    }
+                  }
                 })
                 .addOnFailureListener(
                         new OnFailureListener() {
@@ -247,9 +246,9 @@ public class CustomModelAsyncTask extends android.os.AsyncTask<Void, Void, Void>
     for (int y = 0; y < 256; y++) {
       for (int x = 0; x < 256; x++) {
         int pixel = scaledBitmap.getPixel(x, y);
-        input[0][y][x][0] = ( Color.red(pixel) / 255.0f );
-        input[0][y][x][1] = ( Color.green(pixel) / 255.0f );
-        input[0][y][x][2] = ( Color.blue(pixel) / 255.0f );
+        input[0][y][x][0] = Color.red(pixel);
+        input[0][y][x][1] = Color.green(pixel);
+        input[0][y][x][2] = Color.blue(pixel);
       }
     }
 
